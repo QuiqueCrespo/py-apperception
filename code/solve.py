@@ -214,8 +214,9 @@ def output_general_eca_templates(input_f, n):
 
     # f t = Monad.forM_ (latex_frame t) putStrLn
     for t_obj in templates_to_output:
-        for line in latex_frame(t_obj):
-            print(line)
+        # for line in latex_frame(t_obj):
+        #     print(line)
+        continue
 
 
 # ----------------------- Template-iteration utilities -----------------------

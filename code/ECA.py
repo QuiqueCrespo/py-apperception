@@ -232,6 +232,7 @@ def output_rule2(dir_path, f, ri, bi, t, ot, ns, b, touch_ss, task_type):
 
     with open(f, "w") as file:
         file.write("#program base.\n")
+        file.write("#program base.\n")
         file.write("%------------------------------------------------------------------------------\n")
         file.write(f"% This file was generated using rule {ri}\n")
         file.write(f"% with configuration {b}\n")
@@ -286,9 +287,13 @@ def output_rule2(dir_path, f, ri, bi, t, ot, ns, b, touch_ss, task_type):
             file.write(f"is_object({';'.join(touch_sensor_objs)}).\n")
 
         ts = [str(i) for i in range(1, t + 1)]
-        file.write(f"is_time(1..{len(ts)}).\n")
         file.write("is_concept(c_on).\n")
         file.write("is_concept(c_off).\n")
+        if touch_ss:
+            file.write("is_concept(c_touch).\n")
+        file.write("\n")
+
+        file.write("#program step(t).\n")
         if touch_ss:
             file.write("is_concept(c_touch).\n")
         file.write("\n")
@@ -327,6 +332,22 @@ def output_rule2(dir_path, f, ri, bi, t, ot, ns, b, touch_ss, task_type):
             file.write("\tholds(s2(c_touch, X, _), t).\n")
 
         file.write("#program base.\n")
+        if touch_ss:
+            file.write("% Touch sensor exclusions\n")
+            file.write(":-\n")
+            file.write("\tholds(s2(c_touch, X, Y), t),\n")
+            file.write("\tholds(s2(c_touch, X, Y2), t),\n")
+            file.write("\tY != Y2.\n")
+            file.write("\n")
+            file.write(":-\n")
+            file.write("\tpermanent(isa(t_touch_sensor, X)),\n")
+            file.write("\tis_time(t),\n")
+            file.write("\tnot aux_c_touch(X, t).\n")
+            file.write("\n")
+            file.write("aux_c_touch(X, t) :-\n")
+            file.write("\tholds(s2(c_touch, X, _), t).\n")
+
+        file.write("#program base.\n")
         file.write("% Incompossibility\n")
         file.write("incompossible(s(c_on, X), s(c_off, X)) :-\n")
         file.write("\tpermanent(isa(t_sensor, X)).\n")
@@ -334,6 +355,11 @@ def output_rule2(dir_path, f, ri, bi, t, ot, ns, b, touch_ss, task_type):
         file.write("exclusion_output(\"c_on+c_off\").\n")
 
         if touch_ss:
+            file.write("incompossible(s2(c_touch, X, Y), s2(c_touch, X, Y2)) :-\n")
+            file.write("\tpermanent(isa(t_touch_sensor, X)),\n")
+            file.write("\tpermanent(isa(t_touch, Y)),\n")
+            file.write("\tpermanent(isa(t_touch, Y2)),\n")
+            file.write("\tY != Y2.\n")
             file.write("incompossible(s2(c_touch, X, Y), s2(c_touch, X, Y2)) :-\n")
             file.write("\tpermanent(isa(t_touch_sensor, X)),\n")
             file.write("\tpermanent(isa(t_touch, Y)),\n")

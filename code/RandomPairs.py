@@ -16,7 +16,13 @@ import sys
 class TaskType:
     """Base class for task types."""
     def __str__(self):
-        return self.__class__.__name__.lower().replace('task', '') # e.g., 'prediction'
+        if self.__class__.__name__.lower().replace('task', '') == 'prediction':
+            return "predict"
+        elif self.__class__.__name__.lower().replace('task', '') == 'retrodiction':
+            return "retrodict"
+        elif self.__class__.__name__.lower().replace('task', '') == 'imputation':
+            return "impute"
+        
 
 class TaskPrediction(TaskType):
     """Represents a prediction task."""

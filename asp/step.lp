@@ -2,8 +2,12 @@
 is_time(t).
 
 #minimize {
-    Cr@1, R : use_rule(R), penalty(R,Cr);   % one penalty per used rule
-    1@1,V : rule_body(R,V)                  % one penalty per used atom
+              1@1,A,R : rule_body(R,A);
+              1@1,A,R : rule_arrow_head(R,A);
+              1@1,A,R : rule_causes_head(R,A);
+              1@1,A : init(A);
+              1@1,A : gen_permanent(A);
+              1@1,A,T : force(A,T)
 }.
 
 
