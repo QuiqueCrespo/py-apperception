@@ -63,52 +63,33 @@ def hidden_pairs(task_type, max_i, max_j):
         raise ValueError("Unknown TaskType")
 
 def random_pairs(max_i, max_j, n):
-    """
-    Generates 'n' unique random (time, sensor_index) pairs within the specified ranges.
+    """Return ``n`` unique ``(time, sensor)`` pairs.
 
-    Args:
-        max_i (int): The maximum time index (inclusive).
-        max_j (int): The maximum sensor index (inclusive).
-        n (int): The number of unique random pairs to generate.
+    The previous implementation repeatedly constructed the list of all
+    possible pairs for every sample which was wasteful.  Here we build the
+    Cartesian product once and rely on :func:`random.sample` to efficiently
+    pick distinct pairs.
 
-    Returns:
-        list: A list of 'n' unique (int, int) tuples.
-    """
-    return get_n_pairs(max_i, max_j, n, [])
+    Parameters
+    ----------
+    max_i : int
+        Maximum time index (inclusive).
+    max_j : int
+        Maximum sensor index (inclusive).
+    n : int
+        Number of unique pairs to return.
 
-def get_n_pairs(max_i, max_j, n, acc):
+    Returns
+    -------
+    list[tuple[int, int]]
+        The selected pairs.
     """
-    Helper function for random_pairs, recursively generating unique pairs.
-    """
-    if n == 0:
-        return acc
-    
-    a = get_pair(max_i, max_j, acc)
-    return get_n_pairs(max_i, max_j, n - 1, [a] + acc)
 
-def get_pair(max_i, max_j, sofar):
-    """
-    Picks a random (time, sensor_index) pair that is not already in 'sofar'.
-    """
-    while True:
-        a = pick_pair(max_i, max_j)
-        if a not in sofar:
-            return a
-
-def pick_pair(max_i, max_j):
-    """
-    Randomly picks a single (time, sensor_index) pair from all possible pairs.
-    """
-    all_possible_pairs = [(i, j) for i in range(1, max_i + 1) for j in range(1, max_j + 1)]
-    return pick(all_possible_pairs)
-
-def pick(items):
-    """
-    Randomly picks an item from a list. Equivalent to Haskell's 'pick'.
-    """
-    if not items:
-        raise ValueError("pickFromList wrongly given empty list")
-    return random.choice(items)
+    all_pairs = [(i, j) for i in range(1, max_i + 1)
+                 for j in range(1, max_j + 1)]
+    if n > len(all_pairs):
+        raise ValueError("Requested more pairs than available")
+    return random.sample(all_pairs, n)
 
 def random_indices(initial_seed, xs):
     """
