@@ -15,9 +15,17 @@ from ClingoParser import ClingoOutput, ClingoResult, ClingoParser, ClingoPresent
 from pathlib import Path
 
 
-import matplotlib.pyplot as _plt
+try:
+    import matplotlib.pyplot as _plt
+except Exception:  # pragma: no cover - optional dependency
+    _plt = None
 
-from SolveTemplates import template_sokoban, template_eca_small, make_eca_template
+from SolveTemplates import (
+    template_sokoban,
+    template_eca_small,
+    template_eca,
+    make_eca_template,
+)
 import SokobanData2D as SokobanData
 import SokobanTypes
 
@@ -103,6 +111,22 @@ def solve_sokoban(example_name: str, incremental : bool) -> None:
     #     if flag_output_latex:
     #         write_latex(t, ans)
     # outputs = [presenter.present(t, ans) for ans in answer]
+    print(presenter.present(t, solutions))
+
+
+def solve_eca(input_name: str, incremental: bool) -> None:
+    """Solve an ECA instance with optional incremental solving."""
+
+    print(f"Using ECA input: {input_name}")
+    t = template_eca(False)
+    input_f = f"{input_name}.lp" if not input_name.endswith(".lp") else input_name
+
+    _, solutions = do_solve("data/eca", input_f, t, incremental_solve=incremental)
+
+    if not solutions:
+        print("No solution found.")
+        return
+
     print(presenter.present(t, solutions))
 
 
@@ -610,7 +634,7 @@ def _activate_hints(ctrl: clingo.Control, atoms: Iterable[Symbol], step: int) ->
 
 def _make_graph(outfile: Path) -> None:
     """Plot bar-chart of per-step solve times and a line of cumulative time."""
-    if not _step_durations:
+    if _plt is None or not _step_durations:
         return
 
     steps, durations = zip(*_step_durations)
@@ -889,10 +913,14 @@ def gen_bash(dir: str, input_f: str, add_const: bool, t: Template) -> Tuple[str,
 def main() -> None:
     args = sys.argv[1:]
     print("Solving " + " ".join(args))
-    if len(args) == 3 and args[0] == "sokoban":
-        solve_sokoban(args[1], True if args[2] == "True" else False)
+    if len(args) >= 2 and args[0] == "sokoban":
+        inc = args[2].lower() == "true" if len(args) > 2 else False
+        solve_sokoban(args[1], inc)
+    elif len(args) >= 2 and args[0] == "eca":
+        inc = args[2].lower() == "true" if len(args) > 2 else False
+        solve_eca(args[1], inc)
     else:
-        print("Usage: solve sw/eca/music/rhythm/misc <file>")
+        print("Usage: solve.py sokoban|eca <input_name> [True|False]")
 
 if __name__ == "__main__":
     main()
