@@ -1,13 +1,13 @@
 import sys
 import subprocess
-from itertools import accumulate, product, count
+from itertools import product, count
 from dataclasses import dataclass
 from typing import List, Tuple, Union, Iterator, Optional
 import os
 import re
 import time
 import clingo
-from clingo.symbol import Number, Function, Sequence, Symbol
+from clingo.symbol import Number, Function, Symbol
 from typing import Iterable, Sequence
 from Interpretation import Type as T, Object, Var, Concept, Template
 from ClingoParser import ClingoOutput, ClingoResult, ClingoParser, ClingoPresenter, write_latex
@@ -505,18 +505,20 @@ def get_num_time_steps(input_file: str) -> int:
     if not matches:
         raise ValueError(f"No time steps found in {input_file}.")
     return max(int(match) for match in matches)
+
+
 def get_assumptions(model: Sequence[clingo.Symbol]) -> list:
-        assumptions = []
-        for atom in model:
-            if atom.name in {
-                "use_rule",
-                "rule_var_group",
-                "rule_causes_head",
-                "rule_arrow_head",
-                "rule_body"
-            }:
-                assumptions.append((Function(atom.name, atom.arguments), True))
-        return assumptions
+    assumptions = []
+    for atom in model:
+        if atom.name in {
+            "use_rule",
+            "rule_var_group",
+            "rule_causes_head",
+            "rule_arrow_head",
+            "rule_body",
+        }:
+            assumptions.append((Function(atom.name, atom.arguments), True))
+    return assumptions
 
     
 def model_to_string(model: Sequence[clingo.Symbol]) -> str:
@@ -831,7 +833,9 @@ def do_template_old(add_const: bool, t: Template, dir: str, input_f: str) -> Tup
     script, results = gen_bash(d, input_name, add_const, t)
     return name, script, results
 
-def do_template(add_const: bool, t: Template, dir: str, input_f: str) -> Tuple[str, str, str]:
+def do_template(add_const: bool, t: Template, dir: str, input_f: str) -> Tuple[str, str, bool, Template]:
+    """Generate auxiliary files for *t* and return metadata."""
+
     d = dir[len("data/") :]
     input_name = input_f[:-len(".lp")]
     name = f"{d}_{input_name}"
