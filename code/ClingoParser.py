@@ -44,12 +44,15 @@ class ClingoParser:
         Parse raw Clingo output lines into Answer/Optimization objects.
         """
         outputs: List[ClingoOutputType] = []
-        i = 0
-        while i < len(lines):
-
-            outputs.append(Answer(answer=lines[i ]))
-                
-            i += 1
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith(self.OPT_PREFIX):
+                opt = line[len(self.OPT_PREFIX):].strip()
+                outputs.append(Optimization(optimization=opt))
+            else:
+                outputs.append(Answer(answer=line))
         return outputs
 
     def last_outputs(self, outputs: List[Answer]) -> List[ClingoOutputType]:

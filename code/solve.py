@@ -827,6 +827,15 @@ def do_solve(
             outf.write(model_to_string(m) + "\n")
     print(f"Results written to {result_path}")
 
+    # Additionally write human-readable models
+    formatted_path = os.path.join("temp", f"{tmp_dir}_{name}_results_ex.txt")
+    with open(formatted_path, "w") as outf:
+        for idx, m in enumerate(model_buf, start=1):
+            outf.write(f"--- Model {idx} ---\n")
+            outf.write("\n".join(pretty(m, template, parser, presenter)))
+            outf.write("\n\n")
+    print(f"Formatted results written to {formatted_path}")
+
     # Parse final outputs
     parsed_outputs = parser.parse_lines([model_to_string(current_model)])[0]
 
