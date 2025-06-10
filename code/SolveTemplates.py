@@ -1,10 +1,13 @@
 # Interpretation module provides core types and constructors
 from Interpretation import (
-    Frame, Template,
-    Type as T, Object as O,
+    Frame,
+    Template,
+    Type as T,
+    Object as O,
     Var as V,
     C,
-    P
+    P,
+    ConceptLineage,
 )
 
 
@@ -20,10 +23,10 @@ def frame_sokoban(max_x: int, max_y: int, num_blocks: int) -> Frame:
                 + [(O(f"x{i+1}"), T("2")) for i in range(1, num_blocks+1)],
         exogeneous_objects=[],
         permanent_concepts=[
-            (P("right"), "Given", [T("cell"), T("cell")]),
-            (P("below"), "Given", [T("cell"), T("cell")]),
-            (P("is_not_wall"), "Given", [T("cell")]),
-            (P("is_wall"), "Given", [T("cell")])
+            (P("right"), ConceptLineage.GIVEN, [T("cell"), T("cell")]),
+            (P("below"), ConceptLineage.GIVEN, [T("cell"), T("cell")]),
+            (P("is_not_wall"), ConceptLineage.GIVEN, [T("cell")]),
+            (P("is_wall"), ConceptLineage.GIVEN, [T("cell")]),
         ],
         fluid_concepts=[
             (C("in_1"), [T("1"), T("cell")]),
@@ -111,21 +114,25 @@ def frame_eca(hard_code_space, n):
         objects=[(O(f"cell_{i}"), T("sensor")) for i in range(1, n + 1)],
         exogeneous_objects=[],
         permanent_concepts=[
-            P("r", Given() if hard_code_space else Constructed(), [T("sensor"), T("sensor")])
+            (
+                P("r"),
+                ConceptLineage.GIVEN if hard_code_space else ConceptLineage.CONSTRUCTED,
+                [T("sensor"), T("sensor")],
+            )
         ],
         fluid_concepts=[
-            C("on", [T("sensor")]),
-            C("off", [T("sensor")])
+            (C("on"), [T("sensor")]),
+            (C("off"), [T("sensor")]),
         ],
-        input_concepts=[C("on", []), C("off", [])], # Corrected types for input_concepts based on common usage
+        input_concepts=[C("on"), C("off")],
         static_concepts=[],
         vars=[
-            V("s", T("sensor")),
-            V("s2", T("sensor")),
-            V("s3", T("sensor"))
+            (V("s"), T("sensor")),
+            (V("s2"), T("sensor")),
+            (V("s3"), T("sensor")),
         ],
         var_groups=[
-            [V("s", T("sensor")), V("s2", T("sensor")), V("s3", T("sensor"))]
+            [V("s"), V("s2"), V("s3")],
         ],
         aux_files=["space11.lp"] if hard_code_space else []
     )
@@ -142,7 +149,7 @@ def template_eca_n(hard_code_space, n_sensors):
         Template: The configured Template object.
     """
     return Template(
-        dir_path="eca",
+        dir="eca",
         frame=frame_eca(hard_code_space, n_sensors),
         min_body_atoms=1,
         max_body_atoms=5,
@@ -178,25 +185,25 @@ frame_eca_small = Frame(
     exogeneous_objects=[],
     permanent_concepts=[],
     fluid_concepts=[
-        C("on", [T("sensor")]),
-        C("off", [T("sensor")]),
-        C("part", [T("sensor"), T("grid")])
+        (C("on"), [T("sensor")]),
+        (C("off"), [T("sensor")]),
+        (C("part"), [T("sensor"), T("grid")]),
     ],
-    input_concepts=[C("on", []), C("off", [])], # Corrected types for input_concepts
+    input_concepts=[C("on"), C("off")],
     static_concepts=[],
     vars=[
-        V("s", T("sensor")),
-        V("s2", T("sensor"))
+        (V("s"), T("sensor")),
+        (V("s2"), T("sensor")),
     ],
     var_groups=[
-        [V("s", T("sensor"))],
-        [V("s", T("sensor")), V("s2", T("sensor"))]
+        [V("s")],
+        [V("s"), V("s2")],
     ],
     aux_files=[]
 )
 
 template_eca_small = Template(
-    dir_path="eca",
+    dir="eca",
     frame=frame_eca_small,
     min_body_atoms=0,
     max_body_atoms=2,
