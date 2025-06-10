@@ -45,6 +45,18 @@ class Binary:
     def __eq__(self, other):
         return isinstance(other, Binary) and self.bs == other.bs
 
+    def __add__(self, other):
+        if not isinstance(other, Binary):
+            return NotImplemented
+        # Concatenate the bit lists from both Binary instances
+        return Binary(self.bs + other.bs)
+
+    def __len__(self):
+        return len(self.bs)
+
+    def __iter__(self):
+        return iter(self.bs)
+
     def __repr__(self):
         return f"Binary({self.bs})"
 
