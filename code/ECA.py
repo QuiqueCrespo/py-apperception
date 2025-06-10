@@ -12,6 +12,10 @@ class Bin:
     def __eq__(self, other):
         return self.__class__ == other.__class__ and self.value == other.value
 
+    def __hash__(self):
+        """Allow Bin-derived objects to be used as dictionary keys."""
+        return hash((self.__class__, self.value))
+
     def __ord__(self):
         return self.value
 
