@@ -17,7 +17,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as _plt
 
-from SolveTemplates import template_sokoban
+from SolveTemplates import template_sokoban, template_eca_small, make_eca_template
 import SokobanData2D as SokobanData
 import SokobanTypes
 
@@ -104,6 +104,94 @@ def solve_sokoban(example_name: str, incremental : bool) -> None:
     #         write_latex(t, ans)
     # outputs = [presenter.present(t, ans) for ans in answer]
     print(presenter.present(t, solutions))
+
+
+
+# -------------------------------------------------------------------------------
+# ECA-specific iteration
+# -------------------------------------------------------------------------------
+
+def solve_eca_iteratively(input_f):
+    """
+    Solves ECA problems iteratively using a specific set of templates.
+
+    Args:
+        input_f (str): The input file prefix.
+    """
+    # Haskell: solve_iteratively "data/eca" input_f (all_eca_templates input_f) False False
+    solve_iteratively("data/eca", input_f, all_eca_templates(input_f), False, False)
+
+def all_eca_templates(input_f):
+    """
+    Generates all ECA templates for iterative solving.
+
+    Args:
+        input_f (str): The input file prefix. (Note: this argument is effectively
+                       ignored in the Haskell `make_eca_template` call with `False`.)
+
+    Returns:
+        list: A list of (description_string, Template_object) tuples.
+    """
+    # Haskell: map (make_eca_template False input_f) [0..8]
+    return [make_eca_template(False, input_f, i) for i in range(9)] # 0 to 8 inclusive
+
+# -------------------------------------------------------------------------------
+# ECA iteration using the general code for template iteration
+# -------------------------------------------------------------------------------
+
+def solve_eca_general(input_f):
+    """
+    Solves ECA problems using general template iteration code.
+
+    Args:
+        input_f (str): The input file prefix.
+    """
+    # Haskell: do solve_iteratively "data/misc" input_f (all_general_eca_templates input_f) False False
+    solve_iteratively("data/misc", input_f, all_general_eca_templates(input_f), False, False)
+
+def all_general_eca_templates(input_f):
+    """
+    Generates all general ECA templates by augmenting a base template.
+
+    Args:
+        input_f (str): The input file prefix. (Note: this argument is unused in
+                       the Haskell `all_general_eca_templates` logic.)
+
+    Returns:
+        list: A list of (description_string, Template_object) tuples.
+    """
+    # Haskell: f (i, t) = ("Template " ++ show i, t)
+    # Haskell: ps = parameter_lists [T "sensor"] 100
+    # Haskell: ts = map (augment_template t') ps
+    # Haskell: t' = template_eca_small
+    
+    t_prime = template_eca_small
+    # Assuming Type("sensor") is defined
+    ps = parameter_lists([T("sensor")], 100)
+    ts = [augment_template(t_prime, p) for p in ps]
+
+    # zip [1..] ts
+    # In Python, enumerate starts from 0, so we add 1 for 1-based indexing.
+    return [(f"Template {i+1}", t) for i, t in enumerate(ts)]
+
+def output_general_eca_templates(input_f, n):
+    """
+    Outputs LaTeX representations of general ECA templates.
+
+    Args:
+        input_f (str): The input file prefix. (Unused in Haskell logic).
+        n (int): The number of templates to output.
+    """
+    # Haskell: Monad.forM_ xs f where xs = map snd $ take n (all_general_eca_templates input_f); f t = Monad.forM_ (latex_frame t) putStrLn
+    
+    # xs = map snd $ take n (all_general_eca_templates input_f)
+    # In Python: get the Template objects from the generated list
+    templates_to_output = [t for _, t in all_general_eca_templates(input_f)][:n]
+
+    # f t = Monad.forM_ (latex_frame t) putStrLn
+    for t_obj in templates_to_output:
+        for line in latex_frame(t_obj):
+            print(line)
 
 
 # ----------------------- Template-iteration utilities -----------------------
