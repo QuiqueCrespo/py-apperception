@@ -41,7 +41,16 @@ def strings_to_state(lines: List[str]) -> State:
     for y, row in enumerate(lines, start=1):
         for x, ch in enumerate(row, start=1):
             if ch == '#':
-                walls.append((x, y))
+                state = State(
+                    cells=Cells(bounds=state.cells.bounds,
+                                walls=state.cells.walls + [(x, y)]),
+                    pacman=state.pacman,
+                    pellets=state.pellets,
+                    ghosts=state.ghosts,
+                    ghost_dirs=state.ghost_dirs,
+                    powered=state.powered,
+                    alive=state.alive
+                )
             elif ch == 'o':
                 pellets.append((x, y))
             elif ch == 'g':
@@ -49,7 +58,16 @@ def strings_to_state(lines: List[str]) -> State:
                 ghost_dirs.append(PacmanAction.LEFT)
                 ghost_alive.append(True)
             elif ch == 'p':
-                pacman = (x, y)
+                state = State(
+                    cells=state.cells,
+                    pacman=(x, y),
+                    pellets=state.pellets,
+                    ghosts=state.ghosts,
+                    ghost_dirs=state.ghost_dirs,
+                    powered=state.powered,
+                    alive=state.alive
+                )
+    return state
 
     cells = Cells(bounds=b, walls=walls)
     return State(
@@ -63,6 +81,7 @@ def strings_to_state(lines: List[str]) -> State:
         alive=True,
         pacman_alive=True,
     )
+
 
 
 def convert_action(a: DataAction) -> PacmanAction:
@@ -104,8 +123,21 @@ def perform_action(state: State, action: PacmanAction) -> State:
         new_px, new_py = px, py
 
     bx, by = state.cells.bounds
-    new_px = max(1, min(bx, new_px))
-    new_py = max(1, min(by, new_py))
+    if new_pos[0] < 1:
+        new_pos = (1, new_pos[1])
+    if new_pos[1] < 1:
+        new_pos = (new_pos[0], 1)
+    if new_pos[0] > bx:
+        new_pos = (bx, new_pos[1])
+    if new_pos[1] > by:
+        new_pos = (new_pos[0], by)
+
+    if new_pos in state.cells.walls:
+        new_pos = state.pacman
+
+    if new_pos in state.ghosts:
+        new_pos = state.pacman
+    pellets = [p for p in state.pellets if p != new_pos]
 
     if (new_px, new_py) in state.cells.walls:
         new_px, new_py = px, py
