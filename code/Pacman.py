@@ -108,12 +108,23 @@ def example_to_trajectory(ex: Example) -> Trajectory:
     i = 1
     while i <= len(actions):
         prev_state, prev_action = traj[-1]
-        new_state = perform_action(prev_state, prev_action)
-        if i == len(actions):
+        result = perform_action(prev_state, prev_action)
+
+        # ``perform_action`` may return either just a State or a tuple
+        # ``(State, alive)``.  Handle both cases gracefully.
+        if isinstance(result, tuple) and len(result) == 2:
+            new_state, alive = result
+        else:  # Backwards compatibility
+            new_state, alive = result, getattr(result, "alive", True)
+
+        if i == len(actions) or not alive:
+            # Always append the final state paired with ``NOOP``
             traj.append((new_state, PacmanAction.NOOP))
             break
+
         traj.append((new_state, actions[i]))
         i += 1
+
     return traj
 
 
