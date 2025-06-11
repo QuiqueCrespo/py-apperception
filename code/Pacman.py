@@ -144,17 +144,6 @@ def perform_action(state: State, action: PacmanAction) -> State:
         new_pos = state.pacman
     pellets = [p for p in state.pellets if p != new_pos]
 
-    return State(
-        cells=state.cells,
-        pacman=new_pos,
-        pellets=pellets,
-        ghosts=state.ghosts,
-        ghost_dirs=state.ghost_dirs,
-        powered=state.powered,
-        alive=state.alive,
-    new_px = max(1, min(bx, new_px))
-    new_py = max(1, min(by, new_py))
-
     if (new_px, new_py) in state.cells.walls:
         new_px, new_py = px, py
 
