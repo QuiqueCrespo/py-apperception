@@ -218,8 +218,8 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
     """Return a basic Pacman frame."""
 
     return Frame(
-        types=[T("cell"), T("pacman"), T("pellet"), T("ghost")],
-        type_hierarchy=[],
+        types=[T("cell"), T("character"), T("pacman"), T("pellet"), T("ghost")],
+        type_hierarchy=[(T("character"), [T("pacman"), T("ghost")])],
         objects=[(O("pacman"), T("pacman"))]
                 + [(O(f"pellet_{i}"), T("pellet")) for i in range(1, num_pellets + 1)]
                 + [(O(f"ghost_{i}"), T("ghost")) for i in range(1, num_ghosts + 1)]
@@ -239,6 +239,8 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
             (C("in_pacman"), [T("pacman"), T("cell")]),
             (C("in_ghost"), [T("ghost"), T("cell")]),
             (C("pellet_at"), [T("pellet"), T("cell")]),
+            (C("alive"), [T("character")]),
+            (C("dead"), [T("character")]),
             (C("noop"), [T("pacman")]),
             (C("left"), [T("pacman")]),
             (C("right"), [T("pacman")]),
@@ -249,6 +251,8 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
             C("in_pacman"),
             C("in_ghost"),
             C("pellet_at"),
+            C("alive"),
+            C("dead"),
             C("noop"),
             C("left"),
             C("right"),
