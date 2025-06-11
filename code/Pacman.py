@@ -12,7 +12,15 @@ from PacmanData2D import pacman_examples, PacmanAction as DataAction, Example
 # ==============================================================================
 
 def empty_state(bounds: Pos) -> State:
-    return State(cells=Cells(bounds=bounds, walls=[]), pacman=(0, 0), pellets=[], ghosts=[])
+    return State(
+        cells=Cells(bounds=bounds, walls=[]),
+        pacman=(0, 0),
+        pellets=[],
+        ghosts=[],
+        ghost_dirs=[],
+        powered=False,
+        alive=True,
+    )
 
 
 def get_bounds(lines: List[str]) -> Pos:
@@ -30,28 +38,47 @@ def strings_to_state(lines: List[str]) -> State:
                                 walls=state.cells.walls + [(x, y)]),
                     pacman=state.pacman,
                     pellets=state.pellets,
-                    ghosts=state.ghosts
+                    ghosts=state.ghosts,
+                    ghost_dirs=state.ghost_dirs,
+                    powered=state.powered,
+                    alive=state.alive
                 )
             elif ch == 'o':
                 state = State(
                     cells=state.cells,
                     pacman=state.pacman,
                     pellets=state.pellets + [(x, y)],
-                    ghosts=state.ghosts
+                    ghosts=state.ghosts,
+                    ghost_dirs=state.ghost_dirs,
+                    powered=state.powered,
+                    alive=state.alive
                 )
-            elif ch == 'g':
+            elif ch in ('g', '<', '>', '^', 'v'):
+                gdir = {
+                    '<': PacmanAction.LEFT,
+                    '>': PacmanAction.RIGHT,
+                    '^': PacmanAction.UP,
+                    'v': PacmanAction.DOWN,
+                    'g': PacmanAction.RIGHT,
+                }[ch]
                 state = State(
                     cells=state.cells,
                     pacman=state.pacman,
                     pellets=state.pellets,
-                    ghosts=state.ghosts + [(x, y)]
+                    ghosts=state.ghosts + [(x, y)],
+                    ghost_dirs=state.ghost_dirs + [gdir],
+                    powered=state.powered,
+                    alive=state.alive
                 )
             elif ch == 'p':
                 state = State(
                     cells=state.cells,
                     pacman=(x, y),
                     pellets=state.pellets,
-                    ghosts=state.ghosts
+                    ghosts=state.ghosts,
+                    ghost_dirs=state.ghost_dirs,
+                    powered=state.powered,
+                    alive=state.alive
                 )
     return state
 
@@ -95,7 +122,15 @@ def perform_action(state: State, action: PacmanAction) -> State:
         new_pos = state.pacman
     pellets = [p for p in state.pellets if p != new_pos]
 
-    return State(cells=state.cells, pacman=new_pos, pellets=pellets, ghosts=state.ghosts)
+    return State(
+        cells=state.cells,
+        pacman=new_pos,
+        pellets=pellets,
+        ghosts=state.ghosts,
+        ghost_dirs=state.ghost_dirs,
+        powered=state.powered,
+        alive=state.alive,
+    )
 
 
 # ==============================================================================
