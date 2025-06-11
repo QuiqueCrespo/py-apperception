@@ -37,6 +37,9 @@ class State:
     pacman: Pos
     pellets: List[Pos] = field(default_factory=list)
     ghosts: List[Pos] = field(default_factory=list)
+    ghost_dirs: List[PacmanAction] = field(default_factory=list)
+    powered: bool = False
+    alive: bool = True
 
 
 @dataclass(order=True, frozen=True)
