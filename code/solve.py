@@ -39,7 +39,7 @@ flag_ablation_remove_cost: bool = False
 flag_ablation_remove_permanents: bool = False
 const_time_limit: int = 14400
 
-show_answer_set: bool = False
+show_answer_set: bool = True
 show_extraction: bool = True
 
 
@@ -70,6 +70,8 @@ INTEREST: set[str] = {
     "rule_arrow_head",
     "rule_body",
     "init",
+    "gen_permanent",
+    "force"
 }
 
 # ---------------------------- Sokoban-specific solving ----------------------------
@@ -558,16 +560,17 @@ def make_model_cb(
     template=None,
     parser=None,
     presenter=None,
+    name: Optional[str] = None
 ):
     """Return an *on_model* callback that stores *shown* symbols."""
 
     def cb(model: clingo.Model):
         collector.append(model.symbols(shown=True))
 
-        # with open(_PRINT_FILE, "a") as f:
-        #     f.write(f"model step {step:02d}:\n")
-        #     f.writelines(pretty(collector[-1], template, parser, presenter))
-        #     f.write("\n\n")
+        with open(f"temp/{name}_results.txt", "a") as f:
+            f.write(f"model step {step:02d}:\n")
+            f.writelines(pretty(collector[-1], template, parser, presenter))
+            f.write("\n\n")
         print(f"[model step\u00a0{step:02d}] {len(collector[-1])} atoms shown.")
         print("model cost:", model.cost)
 
@@ -737,7 +740,7 @@ def do_solve(
             # (a) ground the new “step(step)” rule
             ctl.ground([("step", [Number(step)])])
 
-            if step > 1:
+            if step > 2:
 
                 # if consistent_model(ctl, hints):
                 #     print("The model is already consistent with step", step)
@@ -761,7 +764,7 @@ def do_solve(
                 ctl.configuration.solve.heuristic = "None"
                 ctl.solve(
                     assumptions=assumptions,
-                    on_model=make_model_cb(model_buf, step, template, parser, presenter)
+                    on_model=make_model_cb(model_buf, step, template, parser, presenter, name)
                 )
                 success = bool(model_buf)
 
@@ -777,7 +780,7 @@ def do_solve(
                     _activate_hints(ctl, hints, step)
                     ctl.configuration.solve.heuristic = "Vsids-Domain"
                     ctl.solve(
-                        on_model=make_model_cb(model_buf, step, template, parser, presenter)
+                        on_model=make_model_cb(model_buf, step, template, parser, presenter, name)
                     )
                     success = bool(model_buf)
 
@@ -809,7 +812,7 @@ def do_solve(
             ctl.ground([("step", [Number(step)])])
             _step_durations.append((step, 0))
         ctl.solve(
-            on_model=make_model_cb(model_buf, step, template, parser, presenter)
+            on_model=make_model_cb(model_buf, step, template, parser, presenter, name)
         )
         current_model = model_buf[-1]
         # collect the time spent on the solve
