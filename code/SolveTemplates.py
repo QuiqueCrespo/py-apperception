@@ -212,3 +212,77 @@ template_eca_small = Template(
     num_visual_predicates=None,
     use_noise=False
 )
+
+
+def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> Frame:
+    """Return a basic Pacman frame."""
+
+    return Frame(
+        types=[T("cell"), T("pacman"), T("pellet"), T("ghost")],
+        type_hierarchy=[],
+        objects=[(O("pacman"), T("pacman"))]
+                + [(O(f"pellet_{i}"), T("pellet")) for i in range(1, num_pellets + 1)]
+                + [(O(f"ghost_{i}"), T("ghost")) for i in range(1, num_ghosts + 1)]
+                + [
+                    (O(f"cell_{x}_{y}"), T("cell"))
+                    for x in range(1, max_x + 1)
+                    for y in range(1, max_y + 1)
+                ],
+        exogeneous_objects=[],
+        permanent_concepts=[
+            (P("right"), ConceptLineage.GIVEN, [T("cell"), T("cell")]),
+            (P("below"), ConceptLineage.GIVEN, [T("cell"), T("cell")]),
+            (P("is_not_wall"), ConceptLineage.GIVEN, [T("cell")]),
+            (P("is_wall"), ConceptLineage.GIVEN, [T("cell")]),
+        ],
+        fluid_concepts=[
+            (C("in_pacman"), [T("pacman"), T("cell")]),
+            (C("in_ghost"), [T("ghost"), T("cell")]),
+            (C("pellet_at"), [T("pellet"), T("cell")]),
+            (C("noop"), [T("pacman")]),
+            (C("left"), [T("pacman")]),
+            (C("right"), [T("pacman")]),
+            (C("up"), [T("pacman")]),
+            (C("down"), [T("pacman")]),
+        ],
+        input_concepts=[
+            C("in_pacman"),
+            C("in_ghost"),
+            C("pellet_at"),
+            C("noop"),
+            C("left"),
+            C("right"),
+            C("up"),
+            C("down"),
+        ],
+        static_concepts=[],
+        vars=[
+            (V("c1"), T("cell")),
+            (V("c2"), T("cell")),
+            (V("p"), T("pacman")),
+            (V("g"), T("ghost")),
+            (V("o"), T("pellet")),
+        ],
+        var_groups=[
+            [V("p"), V("c1")],
+            [V("g"), V("c1")],
+            [V("o"), V("c1")],
+            [V("p"), V("c1"), V("c2")],
+        ],
+        aux_files=["aux_pacman.lp"],
+    )
+
+
+def template_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> Template:
+    """Template for solving Pacman trajectories."""
+
+    return Template(
+        dir="pacman",
+        frame=frame_pacman(max_x, max_y, num_pellets, num_ghosts),
+        min_body_atoms=1,
+        max_body_atoms=4,
+        num_arrow_rules=4,
+        num_causes_rules=8,
+        use_noise=False,
+        num_visual_predicates=None,
+    )
