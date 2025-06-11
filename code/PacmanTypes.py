@@ -72,7 +72,8 @@ def state_to_strings(state: State) -> List[str]:
      - '.' empty
      - 'w' wall
      - 'o' pellet
-     - 'g' ghost
+     - '^', 'v', '<', '>' ghosts facing up, down, left, right
+     - 'g' ghost (defaults to right)
      - 'p' pacman
     """
     # start with empty grid
@@ -86,9 +87,16 @@ def state_to_strings(state: State) -> List[str]:
     for pos in state.pellets:
         grid = update_strings(grid, pos, 'o')
 
-    # draw ghosts
-    for pos in state.ghosts:
-        grid = update_strings(grid, pos, 'g')
+    # draw ghosts with orientation
+    dir_to_char = {
+        PacmanAction.LEFT: '<',
+        PacmanAction.RIGHT: '>',
+        PacmanAction.UP: '^',
+        PacmanAction.DOWN: 'v',
+    }
+    for pos, d in zip(state.ghosts, state.ghost_dirs):
+        char = dir_to_char.get(d, 'g')
+        grid = update_strings(grid, pos, char)
 
     # draw pacman last
     grid = update_strings(grid, state.pacman, 'p')
