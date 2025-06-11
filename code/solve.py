@@ -25,9 +25,12 @@ from SolveTemplates import (
     template_eca_small,
     template_eca,
     make_eca_template,
+    template_pacman,
 )
 import SokobanData2D as SokobanData
 import SokobanTypes
+import PacmanData2D as PacmanData
+import PacmanTypes
 
 
 # Constants
@@ -91,6 +94,24 @@ def extract_sokoban_data(e: SokobanTypes.Example) -> Tuple[int, int, int]:
     return max_x, max_y, num_blocks
 
 
+# ---------------------------- Pacman-specific solving -----------------------------
+
+def get_pacman_data(name: str) -> Tuple[int, int, int, int]:
+    e = next((i for i in PacmanData.pacman_examples if i[0] == name), None)
+    if not e:
+        raise ValueError(f"No pacman entry called {name}")
+    return extract_pacman_data(e[1])
+
+
+def extract_pacman_data(e: PacmanTypes.Example) -> Tuple[int, int, int, int]:
+    s = e.initial_state
+    max_x = len(s[0])
+    max_y = len(s)
+    num_pellets = sum(row.count('o') for row in s)
+    num_ghosts = sum(row.count('g') for row in s)
+    return max_x, max_y, num_pellets, num_ghosts
+
+
 def solve_sokoban(example_name: str, incremental : bool) -> None:
     print(f"Using example: {example_name}")
 
@@ -113,6 +134,27 @@ def solve_sokoban(example_name: str, incremental : bool) -> None:
     #     if flag_output_latex:
     #         write_latex(t, ans)
     # outputs = [presenter.present(t, ans) for ans in answer]
+    print(presenter.present(t, solutions))
+
+
+def solve_pacman(example_name: str, incremental: bool) -> None:
+    """Solve a Pacman instance."""
+
+    print(f"Using example: {example_name}")
+
+    max_x, max_y, num_pellets, num_ghosts = get_pacman_data(example_name)
+    t = template_pacman(max_x, max_y, num_pellets, num_ghosts)
+
+    print(
+        f"max_x: {max_x} max_y: {max_y} pellets: {num_pellets} ghosts: {num_ghosts}"
+    )
+    input_f = f"predict_{example_name}.lp"
+    _, solutions = do_solve("data/pacman", input_f, t, incremental_solve=incremental)
+
+    if not solutions:
+        print("No solution found.")
+        return
+
     print(presenter.present(t, solutions))
 
 
@@ -929,11 +971,14 @@ def main() -> None:
     if len(args) >= 2 and args[0] == "sokoban":
         inc = args[2].lower() == "true" if len(args) > 2 else False
         solve_sokoban(args[1], inc)
+    elif len(args) >= 2 and args[0] == "pacman":
+        inc = args[2].lower() == "true" if len(args) > 2 else False
+        solve_pacman(args[1], inc)
     elif len(args) >= 2 and args[0] == "eca":
         inc = args[2].lower() == "true" if len(args) > 2 else False
         solve_eca(args[1], inc)
     else:
-        print("Usage: solve.py sokoban|eca <input_name> [True|False]")
+        print("Usage: solve.py sokoban|pacman|eca <input_name> [True|False]")
 
 if __name__ == "__main__":
     main()
