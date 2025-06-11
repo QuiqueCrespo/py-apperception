@@ -30,7 +30,10 @@ def get_bounds(lines: List[str]) -> Pos:
 
 
 def strings_to_state(lines: List[str]) -> State:
+    """Parse a grid of characters into a ``State`` object."""
+
     b = get_bounds(lines)
+
     walls: List[Pos] = []
     pellets: List[Pos] = []
     ghosts: List[Pos] = []
@@ -40,34 +43,17 @@ def strings_to_state(lines: List[str]) -> State:
 
     for y, row in enumerate(lines, start=1):
         for x, ch in enumerate(row, start=1):
-            if ch == '#':
-                state = State(
-                    cells=Cells(bounds=state.cells.bounds,
-                                walls=state.cells.walls + [(x, y)]),
-                    pacman=state.pacman,
-                    pellets=state.pellets,
-                    ghosts=state.ghosts,
-                    ghost_dirs=state.ghost_dirs,
-                    powered=state.powered,
-                    alive=state.alive
-                )
-            elif ch == 'o':
+            if ch in {"#", "w"}:
+                walls.append((x, y))
+            elif ch == "o":
                 pellets.append((x, y))
-            elif ch == 'g':
+            elif ch == "g":
                 ghosts.append((x, y))
+                # Default orientation is left; ``state_to_strings`` ignores it
                 ghost_dirs.append(PacmanAction.LEFT)
                 ghost_alive.append(True)
-            elif ch == 'p':
-                state = State(
-                    cells=state.cells,
-                    pacman=(x, y),
-                    pellets=state.pellets,
-                    ghosts=state.ghosts,
-                    ghost_dirs=state.ghost_dirs,
-                    powered=state.powered,
-                    alive=state.alive
-                )
-    return state
+            elif ch == "p":
+                pacman = (x, y)
 
     cells = Cells(bounds=b, walls=walls)
     return State(
