@@ -29,7 +29,12 @@ def get_bounds(lines: List[str]) -> Pos:
 
 def strings_to_state(lines: List[str]) -> State:
     b = get_bounds(lines)
-    state = empty_state(b)
+    walls: List[Pos] = []
+    pellets: List[Pos] = []
+    ghosts: List[Pos] = []
+    ghost_dirs: List[PacmanAction] = []
+    pacman: Pos = (0, 0)
+
     for y, row in enumerate(lines, start=1):
         for x, ch in enumerate(row, start=1):
             if ch == '#':
@@ -83,6 +88,7 @@ def strings_to_state(lines: List[str]) -> State:
     return state
 
 
+
 def convert_action(a: DataAction) -> PacmanAction:
     return {
         DataAction.STOP: PacmanAction.NOOP,
@@ -94,16 +100,32 @@ def convert_action(a: DataAction) -> PacmanAction:
 
 
 def perform_action(state: State, action: PacmanAction) -> State:
-    if action == PacmanAction.NOOP:
-        return state
-    dx, dy = {
+    """Advance the Pacman state by one action."""
+
+    # mapping from action to delta movement
+    delta = {
         PacmanAction.LEFT: (-1, 0),
         PacmanAction.RIGHT: (1, 0),
         PacmanAction.UP: (0, -1),
         PacmanAction.DOWN: (0, 1),
-    }[action]
-    x, y = state.pacman
-    new_pos = (x + dx, y + dy)
+    }
+
+    opposite = {
+        PacmanAction.LEFT: PacmanAction.RIGHT,
+        PacmanAction.RIGHT: PacmanAction.LEFT,
+        PacmanAction.UP: PacmanAction.DOWN,
+        PacmanAction.DOWN: PacmanAction.UP,
+    }
+
+    # ------------------------------------------------------------------
+    # move pacman
+    # ------------------------------------------------------------------
+    px, py = state.pacman
+    if action != PacmanAction.NOOP:
+        dx, dy = delta[action]
+        new_px, new_py = px + dx, py + dy
+    else:
+        new_px, new_py = px, py
 
     bx, by = state.cells.bounds
     if new_pos[0] < 1:
@@ -130,6 +152,53 @@ def perform_action(state: State, action: PacmanAction) -> State:
         ghost_dirs=state.ghost_dirs,
         powered=state.powered,
         alive=state.alive,
+    new_px = max(1, min(bx, new_px))
+    new_py = max(1, min(by, new_py))
+
+    if (new_px, new_py) in state.cells.walls:
+        new_px, new_py = px, py
+
+    pacman_pos = (new_px, new_py)
+
+    # pellet pickup and power state
+    powered = state.powered or (pacman_pos in state.pellets)
+    pellets = [p for p in state.pellets if p != pacman_pos]
+
+    # ------------------------------------------------------------------
+    # move ghosts
+    # ------------------------------------------------------------------
+    ghosts: List[Pos] = []
+    ghost_dirs: List[PacmanAction] = []
+    alive = state.alive
+
+    for pos, direction in zip(state.ghosts, state.ghost_dirs):
+        gx, gy = pos
+        dx, dy = delta[direction]
+        next_pos = (gx + dx, gy + dy)
+        if next_pos in state.cells.walls:
+            direction = opposite[direction]
+            dx, dy = delta[direction]
+            next_pos = (gx + dx, gy + dy)
+
+        # handle collision with pacman
+        if next_pos == pacman_pos:
+            if powered:
+                # ghost eaten: do not append to new lists
+                continue
+            else:
+                alive = False
+
+        ghosts.append(next_pos)
+        ghost_dirs.append(direction)
+
+    return State(
+        cells=state.cells,
+        pacman=pacman_pos,
+        pellets=pellets,
+        ghosts=ghosts,
+        ghost_dirs=ghost_dirs,
+        powered=powered,
+        alive=alive,
     )
 
 
@@ -143,12 +212,23 @@ def example_to_trajectory(ex: Example) -> Trajectory:
     i = 1
     while i <= len(actions):
         prev_state, prev_action = traj[-1]
-        new_state = perform_action(prev_state, prev_action)
-        if i == len(actions):
+        result = perform_action(prev_state, prev_action)
+
+        # ``perform_action`` may return either just a State or a tuple
+        # ``(State, alive)``.  Handle both cases gracefully.
+        if isinstance(result, tuple) and len(result) == 2:
+            new_state, alive = result
+        else:  # Backwards compatibility
+            new_state, alive = result, getattr(result, "alive", True)
+
+        if i == len(actions) or not alive:
+            # Always append the final state paired with ``NOOP``
             traj.append((new_state, PacmanAction.NOOP))
             break
+
         traj.append((new_state, actions[i]))
         i += 1
+
     return traj
 
 
