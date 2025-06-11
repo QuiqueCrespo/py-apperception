@@ -112,6 +112,9 @@ def perform_action(state: State, action: PacmanAction) -> State:
         PacmanAction.DOWN: PacmanAction.UP,
     }
 
+    pacman_alive = state.pacman_alive
+    ghost_alive = list(state.ghost_alive or [True] * len(state.ghosts))
+
     # ------------------------------------------------------------------
     # move pacman
     # ------------------------------------------------------------------
@@ -123,38 +126,23 @@ def perform_action(state: State, action: PacmanAction) -> State:
         new_px, new_py = px, py
 
     bx, by = state.cells.bounds
-    if new_pos[0] < 1:
-        new_pos = (1, new_pos[1])
-    if new_pos[1] < 1:
-        new_pos = (new_pos[0], 1)
-    if new_pos[0] > bx:
-        new_pos = (bx, new_pos[1])
-    if new_pos[1] > by:
-        new_pos = (new_pos[0], by)
-
-    if new_pos in state.cells.walls:
-        new_pos = state.pacman
-
-    if new_pos in state.ghosts:
-        new_pos = state.pacman
-    pellets = [p for p in state.pellets if p != new_pos]
+    new_px = max(1, min(bx, new_px))
+    new_py = max(1, min(by, new_py))
 
     if (new_px, new_py) in state.cells.walls:
         new_px, new_py = px, py
 
     pacman_pos = (new_px, new_py)
 
-    # pellet pickup and power state
-    powered = state.powered or (pacman_pos in state.pellets)
+    pellet_picked = pacman_pos in state.pellets
+    powered = state.powered or pellet_picked
     pellets = [p for p in state.pellets if p != pacman_pos]
 
     # ------------------------------------------------------------------
     # move ghosts
     # ------------------------------------------------------------------
-    ghosts: List[Pos] = []
-    ghost_dirs: List[PacmanAction] = []
-    alive = state.alive
-
+    next_ghosts: List[Pos] = []
+    next_dirs: List[PacmanAction] = []
     for pos, direction in zip(state.ghosts, state.ghost_dirs):
         gx, gy = pos
         dx, dy = delta[direction]
@@ -163,26 +151,44 @@ def perform_action(state: State, action: PacmanAction) -> State:
             direction = opposite[direction]
             dx, dy = delta[direction]
             next_pos = (gx + dx, gy + dy)
+        next_ghosts.append(next_pos)
+        next_dirs.append(direction)
 
-        # handle collision with pacman
-        if next_pos == pacman_pos:
+    # ------------------------------------------------------------------
+    # detect collisions
+    # ------------------------------------------------------------------
+    final_ghosts: List[Pos] = []
+    final_dirs: List[PacmanAction] = []
+    final_alive: List[bool] = []
+    for idx, (gpos, gdir) in enumerate(zip(next_ghosts, next_dirs)):
+        alive = ghost_alive[idx] if idx < len(ghost_alive) else True
+        if alive and gpos == pacman_pos:
             if powered:
-                # ghost eaten: do not append to new lists
-                continue
-            else:
                 alive = False
+            else:
+                pacman_alive = False
 
-        ghosts.append(next_pos)
-        ghost_dirs.append(direction)
+        if alive:
+            final_ghosts.append(gpos)
+            final_dirs.append(gdir)
+        if idx < len(ghost_alive):
+            final_alive.append(alive)
+
+    if state.powered and not pellet_picked:
+        powered = False
+
+    alive_flag = pacman_alive
 
     return State(
         cells=state.cells,
         pacman=pacman_pos,
         pellets=pellets,
-        ghosts=ghosts,
-        ghost_dirs=ghost_dirs,
+        ghosts=final_ghosts,
+        ghost_dirs=final_dirs,
         powered=powered,
-        alive=alive,
+        alive=alive_flag,
+        pacman_alive=pacman_alive,
+        ghost_alive=final_alive,
     )
 
 
