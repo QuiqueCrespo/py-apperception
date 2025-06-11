@@ -20,6 +20,8 @@ def empty_state(bounds: Pos) -> State:
         ghost_dirs=[],
         powered=False,
         alive=True,
+        pacman_alive=True,
+        ghost_alive=[],
     )
 
 
@@ -33,6 +35,7 @@ def strings_to_state(lines: List[str]) -> State:
     pellets: List[Pos] = []
     ghosts: List[Pos] = []
     ghost_dirs: List[PacmanAction] = []
+    ghost_alive: List[bool] = []
     pacman: Pos = (0, 0)
 
     for y, row in enumerate(lines, start=1):
@@ -49,32 +52,11 @@ def strings_to_state(lines: List[str]) -> State:
                     alive=state.alive
                 )
             elif ch == 'o':
-                state = State(
-                    cells=state.cells,
-                    pacman=state.pacman,
-                    pellets=state.pellets + [(x, y)],
-                    ghosts=state.ghosts,
-                    ghost_dirs=state.ghost_dirs,
-                    powered=state.powered,
-                    alive=state.alive
-                )
-            elif ch in ('g', '<', '>', '^', 'v'):
-                gdir = {
-                    '<': PacmanAction.LEFT,
-                    '>': PacmanAction.RIGHT,
-                    '^': PacmanAction.UP,
-                    'v': PacmanAction.DOWN,
-                    'g': PacmanAction.RIGHT,
-                }[ch]
-                state = State(
-                    cells=state.cells,
-                    pacman=state.pacman,
-                    pellets=state.pellets,
-                    ghosts=state.ghosts + [(x, y)],
-                    ghost_dirs=state.ghost_dirs + [gdir],
-                    powered=state.powered,
-                    alive=state.alive
-                )
+                pellets.append((x, y))
+            elif ch == 'g':
+                ghosts.append((x, y))
+                ghost_dirs.append(PacmanAction.LEFT)
+                ghost_alive.append(True)
             elif ch == 'p':
                 state = State(
                     cells=state.cells,
@@ -86,6 +68,19 @@ def strings_to_state(lines: List[str]) -> State:
                     alive=state.alive
                 )
     return state
+
+    cells = Cells(bounds=b, walls=walls)
+    return State(
+        cells=cells,
+        pacman=pacman,
+        pellets=pellets,
+        ghosts=ghosts,
+        ghost_dirs=ghost_dirs,
+        ghost_alive=ghost_alive,
+        powered=False,
+        alive=True,
+        pacman_alive=True,
+    )
 
 
 
