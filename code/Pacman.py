@@ -12,7 +12,15 @@ from PacmanData2D import pacman_examples, PacmanAction as DataAction, Example
 # ==============================================================================
 
 def empty_state(bounds: Pos) -> State:
-    return State(cells=Cells(bounds=bounds, walls=[]), pacman=(0, 0), pellets=[], ghosts=[])
+    return State(
+        cells=Cells(bounds=bounds, walls=[]),
+        pacman=(0, 0),
+        pellets=[],
+        ghosts=[],
+        ghost_dirs=[],
+        powered=False,
+        alive=True,
+    )
 
 
 def get_bounds(lines: List[str]) -> Pos:
@@ -21,39 +29,34 @@ def get_bounds(lines: List[str]) -> Pos:
 
 def strings_to_state(lines: List[str]) -> State:
     b = get_bounds(lines)
-    state = empty_state(b)
+    walls: List[Pos] = []
+    pellets: List[Pos] = []
+    ghosts: List[Pos] = []
+    ghost_dirs: List[PacmanAction] = []
+    pacman: Pos = (0, 0)
+
     for y, row in enumerate(lines, start=1):
         for x, ch in enumerate(row, start=1):
             if ch == '#':
-                state = State(
-                    cells=Cells(bounds=state.cells.bounds,
-                                walls=state.cells.walls + [(x, y)]),
-                    pacman=state.pacman,
-                    pellets=state.pellets,
-                    ghosts=state.ghosts
-                )
+                walls.append((x, y))
             elif ch == 'o':
-                state = State(
-                    cells=state.cells,
-                    pacman=state.pacman,
-                    pellets=state.pellets + [(x, y)],
-                    ghosts=state.ghosts
-                )
+                pellets.append((x, y))
             elif ch == 'g':
-                state = State(
-                    cells=state.cells,
-                    pacman=state.pacman,
-                    pellets=state.pellets,
-                    ghosts=state.ghosts + [(x, y)]
-                )
+                ghosts.append((x, y))
+                ghost_dirs.append(PacmanAction.LEFT)
             elif ch == 'p':
-                state = State(
-                    cells=state.cells,
-                    pacman=(x, y),
-                    pellets=state.pellets,
-                    ghosts=state.ghosts
-                )
-    return state
+                pacman = (x, y)
+
+    cells = Cells(bounds=b, walls=walls)
+    return State(
+        cells=cells,
+        pacman=pacman,
+        pellets=pellets,
+        ghosts=ghosts,
+        ghost_dirs=ghost_dirs,
+        powered=False,
+        alive=True,
+    )
 
 
 def convert_action(a: DataAction) -> PacmanAction:
@@ -67,35 +70,82 @@ def convert_action(a: DataAction) -> PacmanAction:
 
 
 def perform_action(state: State, action: PacmanAction) -> State:
-    if action == PacmanAction.NOOP:
-        return state
-    dx, dy = {
+    """Advance the Pacman state by one action."""
+
+    # mapping from action to delta movement
+    delta = {
         PacmanAction.LEFT: (-1, 0),
         PacmanAction.RIGHT: (1, 0),
         PacmanAction.UP: (0, -1),
         PacmanAction.DOWN: (0, 1),
-    }[action]
-    x, y = state.pacman
-    new_pos = (x + dx, y + dy)
+    }
+
+    opposite = {
+        PacmanAction.LEFT: PacmanAction.RIGHT,
+        PacmanAction.RIGHT: PacmanAction.LEFT,
+        PacmanAction.UP: PacmanAction.DOWN,
+        PacmanAction.DOWN: PacmanAction.UP,
+    }
+
+    # ------------------------------------------------------------------
+    # move pacman
+    # ------------------------------------------------------------------
+    px, py = state.pacman
+    if action != PacmanAction.NOOP:
+        dx, dy = delta[action]
+        new_px, new_py = px + dx, py + dy
+    else:
+        new_px, new_py = px, py
 
     bx, by = state.cells.bounds
-    if new_pos[0] < 1:
-        new_pos = (1, new_pos[1])
-    if new_pos[1] < 1:
-        new_pos = (new_pos[0], 1)
-    if new_pos[0] > bx:
-        new_pos = (bx, new_pos[1])
-    if new_pos[1] > by:
-        new_pos = (new_pos[0], by)
+    new_px = max(1, min(bx, new_px))
+    new_py = max(1, min(by, new_py))
 
-    if new_pos in state.cells.walls:
-        new_pos = state.pacman
+    if (new_px, new_py) in state.cells.walls:
+        new_px, new_py = px, py
 
-    if new_pos in state.ghosts:
-        new_pos = state.pacman
-    pellets = [p for p in state.pellets if p != new_pos]
+    pacman_pos = (new_px, new_py)
 
-    return State(cells=state.cells, pacman=new_pos, pellets=pellets, ghosts=state.ghosts)
+    # pellet pickup and power state
+    powered = state.powered or (pacman_pos in state.pellets)
+    pellets = [p for p in state.pellets if p != pacman_pos]
+
+    # ------------------------------------------------------------------
+    # move ghosts
+    # ------------------------------------------------------------------
+    ghosts: List[Pos] = []
+    ghost_dirs: List[PacmanAction] = []
+    alive = state.alive
+
+    for pos, direction in zip(state.ghosts, state.ghost_dirs):
+        gx, gy = pos
+        dx, dy = delta[direction]
+        next_pos = (gx + dx, gy + dy)
+        if next_pos in state.cells.walls:
+            direction = opposite[direction]
+            dx, dy = delta[direction]
+            next_pos = (gx + dx, gy + dy)
+
+        # handle collision with pacman
+        if next_pos == pacman_pos:
+            if powered:
+                # ghost eaten: do not append to new lists
+                continue
+            else:
+                alive = False
+
+        ghosts.append(next_pos)
+        ghost_dirs.append(direction)
+
+    return State(
+        cells=state.cells,
+        pacman=pacman_pos,
+        pellets=pellets,
+        ghosts=ghosts,
+        ghost_dirs=ghost_dirs,
+        powered=powered,
+        alive=alive,
+    )
 
 
 # ==============================================================================
