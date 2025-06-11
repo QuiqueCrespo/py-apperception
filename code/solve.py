@@ -856,10 +856,24 @@ def do_solve(
         ctl.solve(
             on_model=make_model_cb(model_buf, step, template, parser, presenter, name)
         )
+        if not model_buf:
+            print("No model found.")
+            os.makedirs(os.path.dirname(result_path), exist_ok=True)
+            with open(result_path, "w"):
+                pass
+            return result_path, []
+
         current_model = model_buf[-1]
         # collect the time spent on the solve
         hints = _interesting_atoms(current_model)
         _step_durations.append((step+1, time.time() - t0))
+
+    if not model_buf:
+        print("No model found after solving.")
+        os.makedirs(os.path.dirname(result_path), exist_ok=True)
+        with open(result_path, "w"):
+            pass
+        return result_path, []
 
 
     total_time = time.time() - start_time
@@ -918,6 +932,7 @@ def do_template(add_const: bool, t: Template, dir: str, input_f: str) -> Tuple[s
     d = dir[len("data/") :]
     input_name = input_f[:-len(".lp")]
     name = f"{d}_{input_name}"
+    os.makedirs("temp", exist_ok=True)
     t.gen_inits(name)
     t.gen_subs(name)
     t.gen_var_atoms(name)
