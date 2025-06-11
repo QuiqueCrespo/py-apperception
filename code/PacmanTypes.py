@@ -40,6 +40,8 @@ class State:
     ghost_dirs: List[PacmanAction] = field(default_factory=list)
     powered: bool = False
     alive: bool = True
+    pacman_alive: bool = True
+    ghost_alive: List[bool] = field(default_factory=list)
 
 
 @dataclass(order=True, frozen=True)

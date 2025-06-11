@@ -20,6 +20,8 @@ def empty_state(bounds: Pos) -> State:
         ghost_dirs=[],
         powered=False,
         alive=True,
+        pacman_alive=True,
+        ghost_alive=[],
     )
 
 
@@ -33,6 +35,7 @@ def strings_to_state(lines: List[str]) -> State:
     pellets: List[Pos] = []
     ghosts: List[Pos] = []
     ghost_dirs: List[PacmanAction] = []
+    ghost_alive: List[bool] = []
     pacman: Pos = (0, 0)
 
     for y, row in enumerate(lines, start=1):
@@ -44,6 +47,7 @@ def strings_to_state(lines: List[str]) -> State:
             elif ch == 'g':
                 ghosts.append((x, y))
                 ghost_dirs.append(PacmanAction.LEFT)
+                ghost_alive.append(True)
             elif ch == 'p':
                 pacman = (x, y)
 
@@ -54,8 +58,10 @@ def strings_to_state(lines: List[str]) -> State:
         pellets=pellets,
         ghosts=ghosts,
         ghost_dirs=ghost_dirs,
+        ghost_alive=ghost_alive,
         powered=False,
         alive=True,
+        pacman_alive=True,
     )
 
 
