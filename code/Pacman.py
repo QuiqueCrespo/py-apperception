@@ -342,7 +342,18 @@ def xors() -> List[str]:
 
 
 def concepts() -> List[str]:
-    items = ["pacman_at", "pellet_at", "ghost_at", "noop", "left", "right", "up", "down"]
+    items = [
+        "pacman_at",
+        "pellet_at",
+        "ghost_at",
+        "alive",
+        "dead",
+        "noop",
+        "left",
+        "right",
+        "up",
+        "down",
+    ]
     lines = ["% Concepts"]
     for s in items:
         lines.append(f"is_concept({s}).")
@@ -387,13 +398,31 @@ def exogenous_atoms(traj: Trajectory) -> List[str]:
 
 def trajectory_atoms(traj: Trajectory) -> List[str]:
     lines = ["% The given sequence"]
+    init_ghosts = len(traj[0][0].ghosts)
     for i, (s, _) in enumerate(traj, start=1):
         px, py = s.pacman
-        lines.append(f"senses(s2(c_pacman_at, obj_pacman, obj_cell_{px}_{py}), {i}).")
+        lines.append(
+            f"senses(s2(c_pacman_at, obj_pacman, obj_cell_{px}_{py}), {i})."
+        )
+
+        status = "alive" if getattr(s, "alive", True) else "dead"
+        lines.append(f"senses(s(c_{status}, obj_pacman), {i}).")
+
         for j, (ox, oy) in enumerate(s.pellets, start=1):
-            lines.append(f"senses(s2(c_pellet_at, obj_pellet_{j}, obj_cell_{ox}_{oy}), {i}).")
-        for j, (gx, gy) in enumerate(s.ghosts, start=1):
-            lines.append(f"senses(s2(c_ghost_at, obj_ghost_{j}, obj_cell_{gx}_{gy}), {i}).")
+            lines.append(
+                f"senses(s2(c_pellet_at, obj_pellet_{j}, obj_cell_{ox}_{oy}), {i})."
+            )
+
+        for j in range(init_ghosts):
+            if j < len(s.ghosts):
+                gx, gy = s.ghosts[j]
+                lines.append(
+                    f"senses(s2(c_ghost_at, obj_ghost_{j+1}, obj_cell_{gx}_{gy}), {i})."
+                )
+                lines.append(f"senses(s(c_alive, obj_ghost_{j+1}), {i}).")
+            else:
+                lines.append(f"senses(s(c_dead, obj_ghost_{j+1}), {i}).")
+
     lines.append("")
     return lines
 
