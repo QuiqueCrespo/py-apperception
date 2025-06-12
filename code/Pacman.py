@@ -4,9 +4,8 @@ import subprocess
 import sys
 from typing import List
 
-from PacmanTypes import State, Cells, Pos, Trajectory, PacmanAction, state_to_strings
-from PacmanData2D import pacman_examples, PacmanAction as DataAction, Example
-
+from PacmanTypes import State, Cells, Pos, Trajectory, PacmanAction, state_to_strings, Example
+from PacmanData2D import pacman_examples
 # ==============================================================================
 # Core state manipulation
 # ==============================================================================
@@ -69,15 +68,6 @@ def strings_to_state(lines: List[str]) -> State:
     )
 
 
-
-def convert_action(a: DataAction) -> PacmanAction:
-    return {
-        DataAction.STOP: PacmanAction.NOOP,
-        DataAction.LEFT: PacmanAction.LEFT,
-        DataAction.RIGHT: PacmanAction.RIGHT,
-        DataAction.UP: PacmanAction.UP,
-        DataAction.DOWN: PacmanAction.DOWN,
-    }[a]
 
 
 def perform_action(state: State, action: PacmanAction) -> State:
@@ -183,7 +173,7 @@ def perform_action(state: State, action: PacmanAction) -> State:
 # ==============================================================================
 
 def example_to_trajectory(ex: Example) -> Trajectory:
-    actions = [convert_action(a) for a in ex.actions]
+    actions = ex.actions
     traj: Trajectory = [(strings_to_state(ex.initial_state), actions[0])]
     i = 1
     while i <= len(actions):
@@ -288,8 +278,8 @@ def exists_uniques() -> List[str]:
     return lines
 
 
-def xors() -> List[str]:
-    actions = ["c_noop", "c_left", "c_right", "c_up", "c_down"]
+def xors_actions() -> List[str]:
+    actions = ["c_noop", "c_west", "c_east", "c_north", "c_south"]
     pairs = [(a1, a2) for i, a1 in enumerate(actions) for a2 in actions[i + 1:]]
     lines = [
         "% Exclusions",
@@ -311,21 +301,70 @@ def xors() -> List[str]:
         "\tpermanent(isa(t_pacman, X)),",
         "\tis_time(t),",
         "\tnot holds(s(c_noop, X), t),",
-        "\tnot holds(s(c_left, X), t),",
-        "\tnot holds(s(c_right, X), t),",
-        "\tnot holds(s(c_up, X), t),",
-        "\tnot holds(s(c_down, X), t).",
-        "",
-        "#program base.",
-        "% Incompossibility",
+        "\tnot holds(s(c_west, X), t),",
+        "\tnot holds(s(c_east, X), t),",
+        "\tnot holds(s(c_north, X), t),",
+        "\tnot holds(s(c_south, X), t).",
+        ""
     ])
+
+    return lines
+
+def incompossible_actions() -> List[str]:
+    actions = ["c_noop", "c_west", "c_east", "c_north", "c_south"]
+    pairs = [(a1, a2) for i, a1 in enumerate(actions) for a2 in actions[i + 1:]]
+    lines = ["% Incompossibility"]
     for a1, a2 in pairs:
         lines.extend([
             f"incompossible(s({a1}, X), s({a2}, X)) :-",
             "\tpermanent(isa(t_pacman, X)).",
             "",
-        ])
+            ])
     return lines
+
+
+
+def xors_life() -> List[str]:
+    lines = [
+        "% Exclusions",
+        "% Pacman is either alive or dead",
+        "% ∀X : pacman, alive(X) ⊕ dead(X)",
+        "",
+        "% At most one",
+        ":-",
+        "\tholds(s(c_alive, X), t),",
+        "\tholds(s(c_dead, X), t).",
+        "",
+        "% At least one",
+        ":-",
+        "\tpermanent(isa(t_pacman, X)),",
+        "\tis_time(t),",
+        "\tnot holds(s(c_alive, X), t),",
+        "\tnot holds(s(c_dead, X), t).",
+        "",
+    ]
+
+    return lines
+
+def incompossible_life() -> List[str]:
+    lines = [
+        "incompossible(s(c_alive, X), s(c_dead, X)) :-",
+        "\tpermanent(isa(t_pacman, X)).",
+        "",
+    ]
+    return lines
+
+def xors() -> List[str]:
+    lines: List[str] = []
+    lines += xors_actions()
+    lines += xors_life()
+    lines += [ "#program base.",
+            "% Incompossibility"]
+    lines += incompossible_actions()
+    lines += incompossible_life()
+    lines.append("")
+    return lines
+
 
 
 def concepts() -> List[str]:
@@ -336,10 +375,10 @@ def concepts() -> List[str]:
         "alive",
         "dead",
         "noop",
-        "left",
-        "right",
-        "up",
-        "down",
+        "west",
+        "east",
+        "north",
+        "south",
     ]
     lines = ["% Concepts"]
     for s in items:
@@ -350,7 +389,7 @@ def concepts() -> List[str]:
 
 def actions() -> List[str]:
     lines = ["% Actions"]
-    for s in ["c_noop", "c_left", "c_right", "c_up", "c_down"]:
+    for s in ["c_noop", "c_west", "c_east", "c_north", "c_south"]:
         lines.append(f"is_exogenous({s}).")
     lines.append("")
     return lines

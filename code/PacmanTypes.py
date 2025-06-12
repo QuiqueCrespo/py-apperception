@@ -18,10 +18,10 @@ class PacmanAction(Enum):
     def __str__(self):
         return {
             PacmanAction.NOOP:  "noop",
-            PacmanAction.LEFT:  "left",
-            PacmanAction.RIGHT: "right",
-            PacmanAction.UP:    "up",
-            PacmanAction.DOWN:  "down",
+            PacmanAction.LEFT:  "west",
+            PacmanAction.RIGHT: "east",
+            PacmanAction.UP:    "north",
+            PacmanAction.DOWN:  "south",
         }[self]
 
 

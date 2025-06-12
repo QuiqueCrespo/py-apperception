@@ -51,7 +51,8 @@ def frame_sokoban(max_x: int, max_y: int, num_blocks: int) -> Frame:
         ],
         var_groups=[
             [V("c1"), V("c2"), V("x")],
-            [V("c1"), V("c2"), V("x"), V("y")]
+            [V("c1"), V("c2"), V("x"), V("y")],
+
         ],
         aux_files=[]
     )
@@ -236,30 +237,41 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
             (P("is_wall"), ConceptLineage.GIVEN, [T("cell")]),
         ],
         fluid_concepts=[
-            (C("in_pacman"), [T("pacman"), T("cell")]),
-            (C("in_ghost"), [T("ghost"), T("cell")]),
+            (C("pacman_at"), [T("pacman"), T("cell")]),
+            (C("ghost_at"), [T("ghost"), T("cell")]),
             (C("pellet_at"), [T("pellet"), T("cell")]),
             (C("alive"), [T("character")]),
             (C("dead"), [T("character")]),
             (C("noop"), [T("pacman")]),
-            (C("left"), [T("pacman")]),
-            (C("right"), [T("pacman")]),
-            (C("up"), [T("pacman")]),
-            (C("down"), [T("pacman")]),
+            (C("west"), [T("pacman")]),
+            (C("east"), [T("pacman")]),
+            (C("north"), [T("pacman")]),
+            (C("south"), [T("pacman")]),
+
+            (C("p1"), [T("2")]),
+            (C("p2"), [T("2")]),
+            (C("p3"), [T("2")]),
+            (C("p4"), [T("2")]),
         ],
         input_concepts=[
-            C("in_pacman"),
-            C("in_ghost"),
+            C("pacman_at"),
+            C("ghost_at"),
             C("pellet_at"),
             C("alive"),
             C("dead"),
             C("noop"),
-            C("left"),
-            C("right"),
-            C("up"),
-            C("down"),
+            C("west"),
+            C("east"),
+            C("north"),
+            C("south"),
+            C("p1"),
+            C("p2"),
+            C("p3"),
+            C("p4")
         ],
-        static_concepts=[],
+        static_concepts=[
+            C("p1"), C("p2"), C("p3"), C("p4")
+        ],
         vars=[
             (V("c1"), T("cell")),
             (V("c2"), T("cell")),
@@ -272,6 +284,11 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
             [V("g"), V("c1")],
             [V("o"), V("c1")],
             [V("p"), V("c1"), V("c2")],
+            [V("g"), V("c1"), V("c2")],
+            [V("o"), V("c1"), V("c2")],
+            [V("p"), V("c1"), V("c2"), V("g")],
+            [V("o"), V("c1"), V("c2"), V("p")],
+        
         ],
         aux_files=["aux_pacman.lp"],
     )
@@ -284,9 +301,9 @@ def template_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -
         dir="pacman",
         frame=frame_pacman(max_x, max_y, num_pellets, num_ghosts),
         min_body_atoms=1,
-        max_body_atoms=4,
-        num_arrow_rules=4,
-        num_causes_rules=8,
+        max_body_atoms=5,
+        num_arrow_rules=10,
+        num_causes_rules=20,
         use_noise=False,
         num_visual_predicates=None,
     )

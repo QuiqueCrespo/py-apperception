@@ -42,7 +42,7 @@ flag_ablation_remove_cost: bool = False
 flag_ablation_remove_permanents: bool = False
 const_time_limit: int = 14400
 
-show_answer_set: bool = True
+show_answer_set: bool = False
 show_extraction: bool = True
 
 
@@ -609,9 +609,11 @@ def make_model_cb(
     def cb(model: clingo.Model):
         collector.append(model.symbols(shown=True))
 
+        print(pretty(collector[-1], template, parser, presenter))
+        
         with open(f"temp/{name}_results.txt", "a") as f:
             f.write(f"model step {step:02d}:\n")
-            f.writelines(pretty(collector[-1], template, parser, presenter))
+            f.write(pretty(collector[-1], template, parser, presenter))
             f.write("\n\n")
         print(f"[model step\u00a0{step:02d}] {len(collector[-1])} atoms shown.")
         print("model cost:", model.cost)
@@ -624,8 +626,7 @@ def pretty(model: Iterable[Symbol], template, parser, presenter) -> List[str]:
     line = " ".join(
         f"{a.name}({','.join(map(str, a.arguments))})" for a in model
     )
-    lines = presenter.present(template, parser.parse_lines([line])[0])
-    return lines
+    return presenter.present(template, parser.parse_lines([line])[0])
 
 def _interesting_atoms(model: Sequence[Symbol]) -> list[Symbol]:
     """Return the subset of *model* that should serve as hints / assumptions."""
@@ -891,7 +892,7 @@ def do_solve(
     with open(formatted_path, "w") as outf:
         for idx, m in enumerate(model_buf, start=1):
             outf.write(f"--- Model {idx} ---\n")
-            outf.write("\n".join(pretty(m, template, parser, presenter)))
+            outf.write(pretty(m, template, parser, presenter))
             outf.write("\n\n")
     print(f"Formatted results written to {formatted_path}")
 

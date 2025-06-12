@@ -320,3 +320,13 @@ used_atom(A) :- force(A,T).
 used_arrow_rule(R)  :- is_arrow_rule(R),   use_rule(R).
 used_causes_rule(R):- is_causes_rule(R),  use_rule(R).
 
+#show holds/2.
+#show rule_body/2.
+#show rule_arrow_head/2.
+#show rule_causes_head/2.
+#show used_atom/1.
+#show used_arrow_rule/1.
+#show used_causes_rule/1.
+#show init/1.
+#show gen_permanent/1.
+#show force/2.

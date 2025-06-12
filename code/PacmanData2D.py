@@ -2,33 +2,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import List, Tuple
 
-
-class PacmanAction(Enum):
-    """Possible actions for Pacman."""
-    STOP = auto()
-    LEFT = auto()
-    RIGHT = auto()
-    UP = auto()
-    DOWN = auto()
-
-    def __str__(self) -> str:
-        return {
-            PacmanAction.STOP: "stop",
-            PacmanAction.LEFT: "west",
-            PacmanAction.RIGHT: "east",
-            PacmanAction.UP: "north",
-            PacmanAction.DOWN: "south",
-        }[self]
-
-
-@dataclass(frozen=True, order=True)
-class Example:
-    """Simple Pacman example description."""
-    initial_state: List[str]
-    actions: List[PacmanAction]
-    num_input: int
-    num_held_out: int
-
+from PacmanTypes import PacmanAction
+from PacmanTypes import Example
 
 # ---------------------------------------------------------------------------
 # Example task descriptions
@@ -91,7 +66,7 @@ example_2d_3 = Example(
         PacmanAction.DOWN, PacmanAction.RIGHT,
         PacmanAction.LEFT, PacmanAction.DOWN,
         PacmanAction.UP, PacmanAction.RIGHT,
-        PacmanAction.STOP, PacmanAction.LEFT,
+        PacmanAction.NOOP, PacmanAction.LEFT,
     ],
     num_input=0,
     num_held_out=0,
@@ -118,7 +93,7 @@ def make_example(ex: Example, n: int) -> Example:
 def make_n_examples(n: int, ex: Example) -> List[Tuple[str, Example]]:
     """Generate seven variants of an example named ``e2d_{n}_{i}``."""
     variants: List[Tuple[str, Example]] = []
-    for i in range(7):
+    for i in range(1):
         name = f"e2d_{n}_{i}"
         variants.append((name, make_example(ex, i)))
     return variants

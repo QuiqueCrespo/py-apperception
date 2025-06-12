@@ -94,30 +94,30 @@ violation_kant_condition_blind_sense :-
 %------------------------------------------------------------------------------
 
 violation_kant_condition_spatial_unity :- 
-    spatial_unity_counterexample(X, Y, T).
+    spatial_unity_counterexample(X, Y, t).
 
-spatial_unity_counterexample(X, Y, T) :-
+spatial_unity_counterexample(X, Y, t) :-
     permanent(isa(t_object, X)), 
     permanent(isa(t_object, Y)), 
-    is_time(T),
-    not related(X, Y, T).
+    is_time(t),
+    not related(X, Y, t).
 
-related(X, Y, T) :-
-    holds(s2(_, X, Y), T).
+related(X, Y, t) :-
+    holds(s2(_, X, Y), t).
 
-related(X, Y, T) :-
+related(X, Y, t) :-
     permanent(isa2(_, X, Y)),
-    is_time(T).
+    is_time(t).
 
-related(X, X, T) :-
+related(X, X, t) :-
     permanent(isa(t_object, X)), 
-    is_time(T).
+    is_time(t).
     
-related(X, Y, T) :- related(Y, X, T).
+related(X, Y, t) :- related(Y, X, t).
 
-related(X, Y, T) :-
-    related(X, Z, T),
-    related(Z, Y, T).
+related(X, Y, t) :-
+    related(X, Z, t),
+    related(Z, Y, t).
 
 %------------------------------------------------------------------------------
 % Aesthetic constraint: part-of must create a labeled pointed graph
