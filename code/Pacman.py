@@ -95,6 +95,12 @@ def perform_action(state: State, action: PacmanAction) -> State:
     # move pacman
     # ------------------------------------------------------------------
     px, py = state.pacman
+    pellets = [p for p in state.pellets if p != state.pacman]
+
+    # remove dead ghosts
+    ghost_alive = [alive for alive in state.ghost_alive if alive]
+
+
     if action != PacmanAction.NOOP:
         dx, dy = delta[action]
         new_px, new_py = px + dx, py + dy
@@ -112,7 +118,6 @@ def perform_action(state: State, action: PacmanAction) -> State:
 
     pellet_picked = pacman_pos in state.pellets
     powered = state.powered or pellet_picked
-    pellets = [p for p in state.pellets if p != pacman_pos]
 
     # ------------------------------------------------------------------
     # move ghosts
@@ -144,9 +149,9 @@ def perform_action(state: State, action: PacmanAction) -> State:
             else:
                 pacman_alive = False
 
-        if alive:
-            final_ghosts.append(gpos)
-            final_dirs.append(gdir)
+
+        final_ghosts.append(gpos)
+        final_dirs.append(gdir)
         if idx < len(ghost_alive):
             final_alive.append(alive)
 
@@ -269,12 +274,29 @@ def exists_unique(p: str, t: str) -> List[str]:
         "",
     ]
 
+def can_exists_unique(p: str, t: str) -> List[str]:
+    return [
+        f"% ∃! clause for {p} : at most one",
+        ":-",
+        f"\tholds(s2({p}, X, Y), t),",
+        f"\tholds(s2({p}, X, Y2), t),",
+        "\tY != Y2.",
+        "",
+        f"% Incompossibility for {p}",
+        f"incompossible(s2({p}, X, Y), s2({p}, X, Y2)) :-",
+        f"\tpermanent(isa({t}, X)),",
+        "\tpermanent(isa(t_cell, Y)),",
+        "\tpermanent(isa(t_cell, Y2)),",
+        "\tY != Y2.",
+        "",
+    ]
+
 
 def exists_uniques() -> List[str]:
     lines: List[str] = []
     lines += exists_unique("c_pacman_at", "t_pacman")
-    lines += exists_unique("c_pellet_at", "t_pellet")
-    lines += exists_unique("c_ghost_at", "t_ghost")
+    lines += can_exists_unique("c_pellet_at", "t_pellet")
+    lines += can_exists_unique("c_ghost_at", "t_ghost")
     return lines
 
 
@@ -308,6 +330,45 @@ def xors_actions() -> List[str]:
         ""
     ])
 
+    return lines
+
+def xors_latent() -> List[str]:
+    preds = ["c_p1", "c_p2"]
+    pairs = [(p1, p2) for i, p1 in enumerate(preds) for p2 in preds[i + 1:]]
+    lines = [
+        "% Exclusions",
+        "% Every latent action is either p1 or p2",
+        "% ∀X : ghost, p1(X) ⊕ p2(X)",
+        "",
+        "% At most one",
+    ]
+    for p1, p2 in pairs:
+        lines.extend([
+            ":-",
+            f"\tholds(s({p1}, X), t),",
+            f"\tholds(s({p2}, X), t).",
+        ])
+    lines.append("")
+    lines.append("% At least one")
+    lines.extend([
+        ":-",
+        "\tpermanent(isa(t_ghost, X)),",
+        "\tis_time(t),",
+        "\tnot holds(s(c_p1, X), t),",
+        "\tnot holds(s(c_p2, X), t).",
+        ""
+    ])
+    return lines
+def incompossible_latent() -> List[str]:
+    preds = ["c_p1", "c_p2"]
+    pairs = [(p1, p2) for i, p1 in enumerate(preds) for p2 in preds[i + 1:]]
+    lines = ["% Incompossibility"]
+    for p1, p2 in pairs:
+        lines.extend([
+            f"incompossible(s({p1}, X), s({p2}, X)) :-",
+            "\tpermanent(isa(t_ghost, X)).",
+            "",
+        ])
     return lines
 
 def incompossible_actions() -> List[str]:
@@ -358,10 +419,12 @@ def xors() -> List[str]:
     lines: List[str] = []
     lines += xors_actions()
     lines += xors_life()
+    lines += xors_latent()
     lines += [ "#program base.",
             "% Incompossibility"]
     lines += incompossible_actions()
     lines += incompossible_life()
+    lines += incompossible_latent()
     lines.append("")
     return lines
 

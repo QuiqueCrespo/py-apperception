@@ -41,9 +41,9 @@ example_2d_2 = Example(
     initial_state=state_2d_2,
     actions=[
         PacmanAction.RIGHT, PacmanAction.RIGHT,
+        PacmanAction.RIGHT, PacmanAction.LEFT,
         PacmanAction.DOWN, PacmanAction.LEFT,
-        PacmanAction.UP, PacmanAction.UP,
-        PacmanAction.RIGHT, PacmanAction.DOWN,
+        PacmanAction.DOWN, PacmanAction.RIGHT,
         PacmanAction.LEFT, PacmanAction.LEFT,
         PacmanAction.UP, PacmanAction.RIGHT,
     ],

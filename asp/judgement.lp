@@ -303,22 +303,22 @@ earlier_rule(R1, R2) :-
 
 
 
-% 1. Penalty facts for rules
+% % 1. Penalty facts for rules
 
-penalty(R,1) :- is_arrow_rule(R).
-penalty(R,1) :- is_causes_rule(R).
+% penalty(R,1) :- is_arrow_rule(R).
+% penalty(R,1) :- is_causes_rule(R).
 
-% 2. Track which rules and atoms get used
-used_atom(A) :- rule_body(R,A),      use_rule(R).
-used_atom(A) :- rule_arrow_head(R,A), use_rule(R).
-used_atom(A) :- rule_causes_head(R,A),use_rule(R).
+% % 2. Track which rules and atoms get used
+% used_atom(A) :- rule_body(R,A),      use_rule(R).
+% used_atom(A) :- rule_arrow_head(R,A), use_rule(R).
+% used_atom(A) :- rule_causes_head(R,A),use_rule(R).
 
-used_atom(A) :- init(A).
-used_atom(A) :- gen_permanent(A).
-used_atom(A) :- force(A,T).
+% used_atom(A) :- init(A).
+% used_atom(A) :- gen_permanent(A).
+% used_atom(A) :- force(A,T).
 
-used_arrow_rule(R)  :- is_arrow_rule(R),   use_rule(R).
-used_causes_rule(R):- is_causes_rule(R),  use_rule(R).
+% used_arrow_rule(R)  :- is_arrow_rule(R),   use_rule(R).
+% used_causes_rule(R):- is_causes_rule(R),  use_rule(R).
 
 #show holds/2.
 #show rule_body/2.

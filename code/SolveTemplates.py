@@ -248,10 +248,10 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
             (C("north"), [T("pacman")]),
             (C("south"), [T("pacman")]),
 
-            (C("p1"), [T("2")]),
-            (C("p2"), [T("2")]),
-            (C("p3"), [T("2")]),
-            (C("p4"), [T("2")]),
+            (C("p1"), [T("ghost")]),
+            (C("p2"), [T("ghost")]),
+            (C("p3"), [T("pacman")]),
+            # (C("p4"), [T("object")]),
         ],
         input_concepts=[
             C("pacman_at"),
@@ -267,11 +267,9 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
             C("p1"),
             C("p2"),
             C("p3"),
-            C("p4")
+            # C("p4")
         ],
-        static_concepts=[
-            C("p1"), C("p2"), C("p3"), C("p4")
-        ],
+        static_concepts=[],
         vars=[
             (V("c1"), T("cell")),
             (V("c2"), T("cell")),
@@ -301,9 +299,9 @@ def template_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -
         dir="pacman",
         frame=frame_pacman(max_x, max_y, num_pellets, num_ghosts),
         min_body_atoms=1,
-        max_body_atoms=5,
-        num_arrow_rules=10,
-        num_causes_rules=20,
+        max_body_atoms=4,
+        num_arrow_rules=0,
+        num_causes_rules=10,
         use_noise=False,
         num_visual_predicates=None,
     )

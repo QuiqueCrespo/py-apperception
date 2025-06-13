@@ -136,6 +136,7 @@ senses(s2(c_ghost_at, obj_ghost_1, obj_cell_6_2), 5).
 senses(s(c_alive, obj_ghost_1), 5).
 senses(s2(c_pacman_at, obj_pacman, obj_cell_4_3), 6).
 senses(s(c_alive, obj_pacman), 6).
+senses(s2(c_pellet_at, obj_pellet_1, obj_cell_4_3), 6).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_7_2), 6).
 senses(s(c_alive, obj_ghost_1), 6).
 senses(s2(c_pacman_at, obj_pacman, obj_cell_4_3), 7).
@@ -425,15 +426,6 @@ incompossible(s2(c_pacman_at, X, Y), s2(c_pacman_at, X, Y2)) :-
 	holds(s2(c_pellet_at, X, Y2), t),
 	Y != Y2.
 
-% ∃! clause for c_pellet_at : at least one
-:-
-	permanent(isa(t_pellet, X)),
-	is_time(t),
-	not aux_c_pellet_at(X, t).
-
-aux_c_pellet_at(X, t) :-
-	holds(s2(c_pellet_at, X, _), t).
-
 % Incompossibility for c_pellet_at
 incompossible(s2(c_pellet_at, X, Y), s2(c_pellet_at, X, Y2)) :-
 	permanent(isa(t_pellet, X)),
@@ -446,15 +438,6 @@ incompossible(s2(c_pellet_at, X, Y), s2(c_pellet_at, X, Y2)) :-
 	holds(s2(c_ghost_at, X, Y), t),
 	holds(s2(c_ghost_at, X, Y2), t),
 	Y != Y2.
-
-% ∃! clause for c_ghost_at : at least one
-:-
-	permanent(isa(t_ghost, X)),
-	is_time(t),
-	not aux_c_ghost_at(X, t).
-
-aux_c_ghost_at(X, t) :-
-	holds(s2(c_ghost_at, X, _), t).
 
 % Incompossibility for c_ghost_at
 incompossible(s2(c_ghost_at, X, Y), s2(c_ghost_at, X, Y2)) :-
@@ -525,6 +508,22 @@ incompossible(s2(c_ghost_at, X, Y), s2(c_ghost_at, X, Y2)) :-
 	not holds(s(c_alive, X), t),
 	not holds(s(c_dead, X), t).
 
+% Exclusions
+% Every latent action is either p1 or p2
+% ∀X : ghost, p1(X) ⊕ p2(X)
+
+% At most one
+:-
+	holds(s(c_p1, X), t),
+	holds(s(c_p2, X), t).
+
+% At least one
+:-
+	permanent(isa(t_ghost, X)),
+	is_time(t),
+	not holds(s(c_p1, X), t),
+	not holds(s(c_p2, X), t).
+
 #program base.
 % Incompossibility
 % Incompossibility
@@ -560,5 +559,9 @@ incompossible(s(c_north, X), s(c_south, X)) :-
 
 incompossible(s(c_alive, X), s(c_dead, X)) :-
 	permanent(isa(t_pacman, X)).
+
+% Incompossibility
+incompossible(s(c_p1, X), s(c_p2, X)) :-
+	permanent(isa(t_ghost, X)).
 
 

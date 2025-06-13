@@ -25,85 +25,85 @@
 % www.www.w
 % wg......w
 % wwwwwwwww
-% south
+% east
 % 
 % Time 4:
 % wwwwwwwww
-% w...o...w
-% wwwpwww.w
+% w...p...w
+% www.www.w
 % w.g.....w
 % wwwwwwwww
 % west
 % 
 % Time 5:
 % wwwwwwwww
-% w...o...w
-% wwwpwww.w
+% w..p....w
+% www.www.w
 % w..g....w
-% wwwwwwwww
-% north
-% 
-% Time 6:
-% wwwwwwwww
-% w..po...w
-% www.www.w
-% w...g...w
-% wwwwwwwww
-% north
-% 
-% Time 7:
-% wwwwwwwww
-% w..po...w
-% www.www.w
-% w....g..w
-% wwwwwwwww
-% east
-% 
-% Time 8:
-% wwwwwwwww
-% w...p...w
-% www.www.w
-% w.....g.w
 % wwwwwwwww
 % south
 % 
+% Time 6:
+% wwwwwwwww
+% w.......w
+% wwwpwww.w
+% w...g...w
+% wwwwwwwww
+% west
+% 
+% Time 7:
+% wwwwwwwww
+% w.......w
+% wwwpwww.w
+% w....g..w
+% wwwwwwwww
+% south
+% 
+% Time 8:
+% wwwwwwwww
+% w.......w
+% www.www.w
+% w..p..g.w
+% wwwwwwwww
+% east
+% 
 % Time 9:
 % wwwwwwwww
-% w...p...w
+% w.......w
 % www.www.w
-% w......gw
+% w...p..gw
 % wwwwwwwww
 % west
 % 
 % Time 10:
 % wwwwwwwww
-% w..p....w
+% w.......w
 % www.www.w
-% w.....g.w
+% w..p..g.w
 % wwwwwwwww
 % west
 % 
 % Time 11:
 % wwwwwwwww
-% w.p.....w
+% w.......w
 % www.www.w
-% w....g..w
+% w.p..g..w
 % wwwwwwwww
 % north
 % 
 % Time 12:
 % wwwwwwwww
-% w.p.....w
+% w.......w
 % www.www.w
-% w...g...w
+% w.p.g...w
 % wwwwwwwww
 % east
 % 
 % Time 13:
 % wwwwwwwww
-% w..p....w
+% w.......w
 % www.www.w
-% w..g....w
+% w..p....w
 % wwwwwwwww
 % noop
 % 
@@ -124,60 +124,57 @@ senses(s(c_alive, obj_pacman), 3).
 senses(s2(c_pellet_at, obj_pellet_1, obj_cell_5_2), 3).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_2_4), 3).
 senses(s(c_alive, obj_ghost_1), 3).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_4_3), 4).
+senses(s2(c_pacman_at, obj_pacman, obj_cell_5_2), 4).
 senses(s(c_alive, obj_pacman), 4).
 senses(s2(c_pellet_at, obj_pellet_1, obj_cell_5_2), 4).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_3_4), 4).
 senses(s(c_alive, obj_ghost_1), 4).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_4_3), 5).
+senses(s2(c_pacman_at, obj_pacman, obj_cell_4_2), 5).
 senses(s(c_alive, obj_pacman), 5).
-senses(s2(c_pellet_at, obj_pellet_1, obj_cell_5_2), 5).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_4_4), 5).
 senses(s(c_alive, obj_ghost_1), 5).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_4_2), 6).
+senses(s2(c_pacman_at, obj_pacman, obj_cell_4_3), 6).
 senses(s(c_alive, obj_pacman), 6).
-senses(s2(c_pellet_at, obj_pellet_1, obj_cell_5_2), 6).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_5_4), 6).
 senses(s(c_alive, obj_ghost_1), 6).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_4_2), 7).
+senses(s2(c_pacman_at, obj_pacman, obj_cell_4_3), 7).
 senses(s(c_alive, obj_pacman), 7).
-senses(s2(c_pellet_at, obj_pellet_1, obj_cell_5_2), 7).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_6_4), 7).
 senses(s(c_alive, obj_ghost_1), 7).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_5_2), 8).
+senses(s2(c_pacman_at, obj_pacman, obj_cell_4_4), 8).
 senses(s(c_alive, obj_pacman), 8).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_7_4), 8).
 senses(s(c_alive, obj_ghost_1), 8).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_5_2), 9).
+senses(s2(c_pacman_at, obj_pacman, obj_cell_5_4), 9).
 senses(s(c_alive, obj_pacman), 9).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_8_4), 9).
 senses(s(c_alive, obj_ghost_1), 9).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_4_2), 10).
+senses(s2(c_pacman_at, obj_pacman, obj_cell_4_4), 10).
 senses(s(c_alive, obj_pacman), 10).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_7_4), 10).
 senses(s(c_alive, obj_ghost_1), 10).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_3_2), 11).
+senses(s2(c_pacman_at, obj_pacman, obj_cell_3_4), 11).
 senses(s(c_alive, obj_pacman), 11).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_6_4), 11).
 senses(s(c_alive, obj_ghost_1), 11).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_3_2), 12).
+senses(s2(c_pacman_at, obj_pacman, obj_cell_3_4), 12).
 senses(s(c_alive, obj_pacman), 12).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_5_4), 12).
 senses(s(c_alive, obj_ghost_1), 12).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_4_2), 13).
-senses(s(c_alive, obj_pacman), 13).
+senses(s2(c_pacman_at, obj_pacman, obj_cell_4_4), 13).
+senses(s(c_dead, obj_pacman), 13).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_4_4), 13).
 senses(s(c_alive, obj_ghost_1), 13).
 
 % Exogenous actions
 exogenous(s(c_east, obj_pacman), 1).
 exogenous(s(c_east, obj_pacman), 2).
-exogenous(s(c_south, obj_pacman), 3).
+exogenous(s(c_east, obj_pacman), 3).
 exogenous(s(c_west, obj_pacman), 4).
-exogenous(s(c_north, obj_pacman), 5).
-exogenous(s(c_north, obj_pacman), 6).
-exogenous(s(c_east, obj_pacman), 7).
-exogenous(s(c_south, obj_pacman), 8).
+exogenous(s(c_south, obj_pacman), 5).
+exogenous(s(c_west, obj_pacman), 6).
+exogenous(s(c_south, obj_pacman), 7).
+exogenous(s(c_east, obj_pacman), 8).
 exogenous(s(c_west, obj_pacman), 9).
 exogenous(s(c_west, obj_pacman), 10).
 exogenous(s(c_north, obj_pacman), 11).
@@ -451,15 +448,6 @@ incompossible(s2(c_pacman_at, X, Y), s2(c_pacman_at, X, Y2)) :-
 	holds(s2(c_pellet_at, X, Y2), t),
 	Y != Y2.
 
-% % ∃! clause for c_pellet_at : at least one
-% :-
-% 	permanent(isa(t_pellet, X)),
-% 	is_time(t),
-% 	not aux_c_pellet_at(X, t).
-
-aux_c_pellet_at(X, t) :-
-	holds(s2(c_pellet_at, X, _), t).
-
 % Incompossibility for c_pellet_at
 incompossible(s2(c_pellet_at, X, Y), s2(c_pellet_at, X, Y2)) :-
 	permanent(isa(t_pellet, X)),
@@ -472,15 +460,6 @@ incompossible(s2(c_pellet_at, X, Y), s2(c_pellet_at, X, Y2)) :-
 	holds(s2(c_ghost_at, X, Y), t),
 	holds(s2(c_ghost_at, X, Y2), t),
 	Y != Y2.
-
-% ∃! clause for c_ghost_at : at least one
-:-
-	permanent(isa(t_ghost, X)),
-	is_time(t),
-	not aux_c_ghost_at(X, t).
-
-aux_c_ghost_at(X, t) :-
-	holds(s2(c_ghost_at, X, _), t).
 
 % Incompossibility for c_ghost_at
 incompossible(s2(c_ghost_at, X, Y), s2(c_ghost_at, X, Y2)) :-
@@ -551,6 +530,22 @@ incompossible(s2(c_ghost_at, X, Y), s2(c_ghost_at, X, Y2)) :-
 	not holds(s(c_alive, X), t),
 	not holds(s(c_dead, X), t).
 
+% Exclusions
+% Every latent action is either p1 or p2
+% ∀X : ghost, p1(X) ⊕ p2(X)
+
+% At most one
+:-
+	holds(s(c_p1, X), t),
+	holds(s(c_p2, X), t).
+
+% At least one
+:-
+	permanent(isa(t_ghost, X)),
+	is_time(t),
+	not holds(s(c_p1, X), t),
+	not holds(s(c_p2, X), t).
+
 #program base.
 % Incompossibility
 % Incompossibility
@@ -586,5 +581,9 @@ incompossible(s(c_north, X), s(c_south, X)) :-
 
 incompossible(s(c_alive, X), s(c_dead, X)) :-
 	permanent(isa(t_pacman, X)).
+
+% Incompossibility
+incompossible(s(c_p1, X), s(c_p2, X)) :-
+	permanent(isa(t_ghost, X)).
 
 
