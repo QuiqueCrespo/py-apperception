@@ -634,11 +634,11 @@ def _interesting_atoms(model: Sequence[Symbol]) -> list[Symbol]:
 
 
 def _wipe_all_hints(ctrl: clingo.Control) -> None:
-    """Set every known ``hint/1`` external to *false*."""
+    """Set every known ``hint/1`` external to *false* and remove it."""
     for ext, is_on in list(_known_externals.items()):
         if is_on:
             ctrl.release_external(ext)
-            _known_externals[ext] = False
+            _known_externals.pop(ext, None)
 
 def _activate_hints(ctrl: clingo.Control, atoms: Iterable[Symbol], step: int) -> None:
     """Attach *heuristic* guidance for *atoms* (declare once, enable this step)."""
