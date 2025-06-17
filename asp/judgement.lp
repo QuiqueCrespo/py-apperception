@@ -301,6 +301,11 @@ earlier_rule(R1, R2) :-
     is_causes_rule(R2),
     R1 < R2.
 
+init(A) :- 
+    senses(A, 1).
+
+init(A) :-
+    exogenous(A, 1).
 
 
 % % 1. Penalty facts for rules

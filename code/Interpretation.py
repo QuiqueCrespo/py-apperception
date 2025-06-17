@@ -168,19 +168,39 @@ class Isa2(VarAtom):  # Binary type assertion
 class Rule:
     id: str
 
+    def parse_rule_atom(self, atom: str) -> Union[str]:  # Replace str with GroundAtom or VarAtom if available
+        """
+        Parses a rule atom string and returns the corresponding GroundAtom or VarAtom.
+        Capitalizes predicate and argument names.
+        """
+        match = re.fullmatch(r"\s*(\w+)\s*\(([^)]*)\)\s*", atom)
+        if not match:
+            raise ValueError(f"Invalid rule atom format: {atom}")
+
+        _, atom_ = match.groups()
+        pred = "_".join(atom_.strip().split(",")[0].split("_")[1:])
+        args = ["_".join(arg.split("_")[1:]).strip().capitalize() for arg in atom_.split(",")[1:] if arg.strip()]
+
+        return f"{pred}({', '.join(args)})"
+
+
+
+        
+        
+
 @dataclass(frozen=True)
 class Arrow(Rule):
     body: List[str]
     head: str
     def __str__(self) -> str:
-        return f"{self.id} : {and_string().join(self.body)}{arrow_string()}{self.head}"
+        return f"{self.id} : {and_string().join([self.parse_rule_atom(a) for a in self.body])}{arrow_string()}{self.parse_rule_atom(self.head)}"
 
 @dataclass(frozen=True)
 class Causes(Rule):
     body: List[str]
     head: str
     def __str__(self) -> str:
-        return f"{self.id} : {and_string().join(self.body)}{causes_string()}{self.head}"
+        return f"{self.id} : {and_string().join([self.parse_rule_atom(a) for a in self.body])}{causes_string()}{self.parse_rule_atom(self.head)}"
 
 
 @dataclass(frozen=True)
@@ -188,7 +208,7 @@ class Xor(Rule):
     body: List[str]
     heads: List[str]
     def __str__(self) -> str:
-        return f"{self.id} : {and_string().join(self.body)}{arrow_string()}{xor_string().join(self.heads)}"
+        return f"{self.id} : {and_string().join([self.parse_rule_atom(a) for a in self.body])}{arrow_string()}{xor_string().join(self.parse_rule_atom(self.head))}"
 
 @dataclass
 class InterpretationStatistics:
@@ -291,22 +311,12 @@ class Interpretation:
         return [x[len(prefix):-1] for x in xs if x.startswith(prefix)]
 
     def extract_arrow_pair(self, s: str) -> Tuple[str, str]:
-        parts = self.bimble_split(s, ',')
+        parts = s.split(",")
         return parts[0], ", ".join(parts[1:])
 
     def extract_cause_pair(self, s: str) -> Tuple[str, str]:
-        parts = self.bimble_split(s, ',')
+        parts = s.split(",")
         return parts[0], ", ".join(parts[1:])
-
-    def bimble_split(self, s: str, sep: str) -> List[str]:
-        res, acc = [], ""
-        for ch in s:
-            if ch == sep:
-                res.append(acc); acc = ""
-            else:
-                acc += ch
-        res.append(acc)
-        return res
 
     # --- facts & forces ---
     def extract_facts(self, xs: List[str]) -> List[Tuple[int, List[str]]]:
@@ -320,9 +330,12 @@ class Interpretation:
         for x in xs:
             if x.startswith(p):
                 body = x[len(p):-1]
-                parts = self.bimble_split(body, ',')
+                parts = body.split(',')
                 t = int(parts[-1])
-                a = ", ".join(parts[:-1])
+                pred = parts[0].split("(")[1].split("_")[1:]  # Remove 'c_' or 's_' prefix
+                pred = "_".join(pred).strip()  # Capitalize predicate
+                args = ["_".join(arg.split('_')[1:]).strip() for arg in parts[1:-1] if arg.strip()]
+                a = f"{pred}({', '.join(args)}"
                 out.append((t, a))
         return out
 
@@ -354,7 +367,19 @@ class Interpretation:
         raise ValueError(f"Multiple matches for {p}")
 
     def extract_atoms(self, p: str, xs: List[str]) -> List[str]:
-        return [x[len(p):-1] for x in xs if x.startswith(p)]
+        atoms = [x[len(p):-1] for x in xs if x.startswith(p)]
+        cleaned_atoms = []
+        for atom in atoms:
+            atom = atom.split(',')
+            pred = "_".join(atom[0].strip().split('_')[1:])  # Remove 'c_' or 's_' prefix
+            args = [
+                "_".join(arg.split('_')[1:]).strip()# Capitalize and remove prefix
+                for arg in atom[1:] if arg.strip()
+            ]
+            cleaned_atoms.append(f"{pred}({', '.join(args)}")
+        return cleaned_atoms
+    
+        
 
     # --- statistics ---
     def extract_num_used_arrow_rules(self, xs: List[str]) -> int:
@@ -381,13 +406,13 @@ class Interpretation:
         total = int(bvs[0]) if bvs else 0
         if total == 0 or len(pps) <= 1:
             return 0.0
-        counts = [int(self.bimble_split(s, ',')[1]) for s in bnn_es]
+        counts = [int(s.split(",")[1]) for s in bnn_es]
         freqs  = [c/total for c in counts if total>0]
         base   = len(pps)
         return sum(-p * math.log(p, base) for p in freqs if p > 0)
 
     def extract_ambiguity(self, xs: List[str]) -> Optional[int]:
-        pairs = [tuple(self.bimble_split(s, ',')) for s in self.extract_atoms("possible_pred(", xs)]
+        pairs = [tuple(s.split(",")) for s in self.extract_atoms("possible_pred(", xs)]
         if not pairs:
             return None
         m: Dict[str, List[str]] = defaultdict(list)
@@ -590,14 +615,7 @@ class Frame:
             lines.append("")
         return lines
 
-    def gen_xor_constraints(self) -> List[str]:
-        c_cs = []
-        for t, cs in self.gen_unary_concepts().items():
-            c_cs.extend(self.gen_xor_constraints_for_type(PredicateType.IS_FLUENT, t, sorted(cs)))
-        c_ps = []
-        for t, cs in self.gen_permanent_concepts().items():
-            c_ps.extend(self.gen_xor_constraints_for_type(PredicateType.IS_PERMANENT, t, sorted(cs)))
-        return c_cs + c_ps
+
 
     def gen_exists_constraints(self) -> List[str]:
         lines: List[str] = []
@@ -676,17 +694,14 @@ class Frame:
             "\tY != Y2.",
             ""
         ]
-
+    
     def gen_xor_constraints(self) -> List[str]:
         c_cs = []
+        for t, cs in self.gen_unary_concepts().items():
+            c_cs.extend(self.gen_xor_constraints_for_type(PredicateType.IS_FLUENT, t, sorted(cs)))
         c_ps = []
-        cs = list(self.gen_unary_concepts().items())  # type: List[Tuple[Type, List[Concept]]]
-        ps = list(self.gen_permanent_concepts().items())
-        def f(k, t_cs):
-            t, concepts = t_cs
-            return Frame.gen_xor_constraints_for_type(k, t, sorted(concepts))
-        c_cs = [line for pair in cs for line in f(PredicateType.IS_FLUENT, pair)]
-        c_ps = [line for pair in ps for line in f(PredicateType.IS_PERMANENT, pair)]
+        for t, cs in self.gen_permanent_concepts().items():
+            c_ps.extend(self.gen_xor_constraints_for_type(PredicateType.IS_PERMANENT, t, sorted(cs)))
         return c_cs + c_ps
 
     @staticmethod

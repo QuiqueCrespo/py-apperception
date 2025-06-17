@@ -301,7 +301,7 @@ def template_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -
         min_body_atoms=1,
         max_body_atoms=4,
         num_arrow_rules=0,
-        num_causes_rules=10,
+        num_causes_rules=7,
         use_noise=False,
         num_visual_predicates=None,
     )

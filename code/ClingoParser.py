@@ -127,7 +127,7 @@ class ClingoPresenter:
 
 
     def show_fact(self, time: int, facts: List[str]) -> str:
-        return f"Time {time}: \n" + "\n ".join(facts)
+        return f"Time {time}: \n " + "\n ".join(facts)
 
 
     def readable_stats(self, stats: 'InterpretationStatistics') -> List[str]:

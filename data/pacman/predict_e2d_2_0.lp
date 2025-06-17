@@ -25,86 +25,6 @@
 % w..ow..w
 % w......w
 % wwwwwwww
-% east
-% 
-% Time 4:
-% wwwwwwww
-% w..pg..w
-% w..ow..w
-% w......w
-% wwwwwwww
-% north
-% 
-% Time 5:
-% wwwwwwww
-% w..p.g.w
-% w..ow..w
-% w......w
-% wwwwwwww
-% south
-% 
-% Time 6:
-% wwwwwwww
-% w.....gw
-% w..pw..w
-% w......w
-% wwwwwwww
-% east
-% 
-% Time 7:
-% wwwwwwww
-% w....g.w
-% w..pw..w
-% w......w
-% wwwwwwww
-% west
-% 
-% Time 8:
-% wwwwwwww
-% w...g..w
-% w.p.w..w
-% w......w
-% wwwwwwww
-% south
-% 
-% Time 9:
-% wwwwwwww
-% w..g...w
-% w...w..w
-% w.p....w
-% wwwwwwww
-% north
-% 
-% Time 10:
-% wwwwwwww
-% w.g....w
-% w.p.w..w
-% w......w
-% wwwwwwww
-% east
-% 
-% Time 11:
-% wwwwwwww
-% wg.....w
-% w..pw..w
-% w......w
-% wwwwwwww
-% noop
-% 
-% Time 12:
-% wwwwwwww
-% w.g....w
-% w..pw..w
-% w......w
-% wwwwwwww
-% west
-% 
-% Time 13:
-% wwwwwwww
-% w..g...w
-% w.p.w..w
-% w......w
-% wwwwwwww
 % noop
 % 
 
@@ -120,68 +40,15 @@ senses(s2(c_pellet_at, obj_pellet_1, obj_cell_4_3), 2).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_3_2), 2).
 senses(s(c_alive, obj_ghost_1), 2).
 senses(s2(c_pacman_at, obj_pacman, obj_cell_3_2), 3).
-senses(s(c_alive, obj_pacman), 3).
+senses(s(c_dead, obj_pacman), 3).
 senses(s2(c_pellet_at, obj_pellet_1, obj_cell_4_3), 3).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_4_2), 3).
 senses(s(c_alive, obj_ghost_1), 3).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_4_2), 4).
-senses(s(c_alive, obj_pacman), 4).
-senses(s2(c_pellet_at, obj_pellet_1, obj_cell_4_3), 4).
-senses(s2(c_ghost_at, obj_ghost_1, obj_cell_5_2), 4).
-senses(s(c_alive, obj_ghost_1), 4).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_4_2), 5).
-senses(s(c_alive, obj_pacman), 5).
-senses(s2(c_pellet_at, obj_pellet_1, obj_cell_4_3), 5).
-senses(s2(c_ghost_at, obj_ghost_1, obj_cell_6_2), 5).
-senses(s(c_alive, obj_ghost_1), 5).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_4_3), 6).
-senses(s(c_alive, obj_pacman), 6).
-senses(s2(c_pellet_at, obj_pellet_1, obj_cell_4_3), 6).
-senses(s2(c_ghost_at, obj_ghost_1, obj_cell_7_2), 6).
-senses(s(c_alive, obj_ghost_1), 6).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_4_3), 7).
-senses(s(c_alive, obj_pacman), 7).
-senses(s2(c_ghost_at, obj_ghost_1, obj_cell_6_2), 7).
-senses(s(c_alive, obj_ghost_1), 7).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_3_3), 8).
-senses(s(c_alive, obj_pacman), 8).
-senses(s2(c_ghost_at, obj_ghost_1, obj_cell_5_2), 8).
-senses(s(c_alive, obj_ghost_1), 8).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_3_4), 9).
-senses(s(c_alive, obj_pacman), 9).
-senses(s2(c_ghost_at, obj_ghost_1, obj_cell_4_2), 9).
-senses(s(c_alive, obj_ghost_1), 9).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_3_3), 10).
-senses(s(c_alive, obj_pacman), 10).
-senses(s2(c_ghost_at, obj_ghost_1, obj_cell_3_2), 10).
-senses(s(c_alive, obj_ghost_1), 10).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_4_3), 11).
-senses(s(c_alive, obj_pacman), 11).
-senses(s2(c_ghost_at, obj_ghost_1, obj_cell_2_2), 11).
-senses(s(c_alive, obj_ghost_1), 11).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_4_3), 12).
-senses(s(c_alive, obj_pacman), 12).
-senses(s2(c_ghost_at, obj_ghost_1, obj_cell_3_2), 12).
-senses(s(c_alive, obj_ghost_1), 12).
-senses(s2(c_pacman_at, obj_pacman, obj_cell_3_3), 13).
-senses(s(c_alive, obj_pacman), 13).
-senses(s2(c_ghost_at, obj_ghost_1, obj_cell_4_2), 13).
-senses(s(c_alive, obj_ghost_1), 13).
 
 % Exogenous actions
 exogenous(s(c_west, obj_pacman), 1).
 exogenous(s(c_west, obj_pacman), 2).
-exogenous(s(c_east, obj_pacman), 3).
-exogenous(s(c_north, obj_pacman), 4).
-exogenous(s(c_south, obj_pacman), 5).
-exogenous(s(c_east, obj_pacman), 6).
-exogenous(s(c_west, obj_pacman), 7).
-exogenous(s(c_south, obj_pacman), 8).
-exogenous(s(c_north, obj_pacman), 9).
-exogenous(s(c_east, obj_pacman), 10).
-exogenous(s(c_noop, obj_pacman), 11).
-exogenous(s(c_west, obj_pacman), 12).
-exogenous(s(c_noop, obj_pacman), 13).
+exogenous(s(c_noop, obj_pacman), 3).
 
 % Elements
 is_object(obj_pacman).

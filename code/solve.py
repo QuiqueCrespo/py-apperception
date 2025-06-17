@@ -120,7 +120,7 @@ def solve_sokoban(example_name: str, incremental : bool) -> None:
 
     print(f"max_x: {max_x} max_y: {max_y} n_blocks: {n_blocks}")
     input_f = f"predict_{example_name}.lp"
-    _, solutions = do_solve("data/sokoban", input_f, t, incremental_solve=incremental)
+    _, solutions = do_solve("data/sokoban", input_f, t, incremental=incremental)
 
     answer = solutions
 
@@ -149,7 +149,7 @@ def solve_pacman(example_name: str, incremental: bool) -> None:
         f"max_x: {max_x} max_y: {max_y} pellets: {num_pellets} ghosts: {num_ghosts}"
     )
     input_f = f"predict_{example_name}.lp"
-    _, solutions = do_solve("data/pacman", input_f, t, incremental_solve=incremental)
+    _, solutions = do_solve("data/pacman", input_f, t, incremental=incremental)
 
     if not solutions:
         print("No solution found.")
@@ -165,7 +165,7 @@ def solve_eca(input_name: str, incremental: bool) -> None:
     t = template_eca(False)
     input_f = f"{input_name}.lp" if not input_name.endswith(".lp") else input_name
 
-    _, solutions = do_solve("data/eca", input_f, t, incremental_solve=incremental)
+    _, solutions = do_solve("data/eca", input_f, t, incremental=incremental)
 
     if not solutions:
         print("No solution found.")
@@ -607,16 +607,9 @@ def make_model_cb(
     """Return an *on_model* callback that stores *shown* symbols."""
 
     def cb(model: clingo.Model):
+        print(f"modelfound with cost {model.cost} at step {step}")
         collector.append(model.symbols(shown=True))
-
-        print(pretty(collector[-1], template, parser, presenter))
-        
-        with open(f"temp/{name}_results.txt", "a") as f:
-            f.write(f"model step {step:02d}:\n")
-            f.write(pretty(collector[-1], template, parser, presenter))
-            f.write("\n\n")
-        print(f"[model step\u00a0{step:02d}] {len(collector[-1])} atoms shown.")
-        print("model cost:", model.cost)
+        return None
 
     return cb
 
@@ -679,12 +672,12 @@ def _activate_hints(ctrl: clingo.Control, atoms: Iterable[Symbol], step: int) ->
             _known_externals[ext] = True
 
 
-def _make_graph(outfile: Path) -> None:
+def _make_graph(step_durations,outfile: Path) -> None:
     """Plot bar-chart of per-step solve times and a line of cumulative time."""
     if _plt is None or not _step_durations:
         return
 
-    steps, durations = zip(*_step_durations)
+    steps, durations = zip(*step_durations)
     cumulative = [sum(durations[:i + 1]) for i in range(len(durations))]
 
     _plt.figure(figsize=(max(6, len(steps) * 0.6), 4))
@@ -702,220 +695,180 @@ def _make_assumptions(ctrl: clingo.Control, atoms: Iterable[Symbol]) -> List[Tup
     """Translate *atoms* to solver literals for the ``assumptions`` API."""
     return [(Function(atom.name, atom.arguments), True) for atom in atoms]
 
+def _collect_asp_files(tmp_dir, name, t_desc):
+    files = files_to_load(tmp_dir, name, t_desc)
+    files += ["asp/judgement.lp", "asp/constraints.lp", "asp/step.lp"]
+    print(f"Files to load: {files}")
+    return files
+
+def _setup_control(files):
+    ctl = clingo.Control(["--parallel-mode=4"])
+
+    for f in files:
+        ctl.load(f)
+    return ctl
+
 def do_solve(
     work_dir: str,
     input_file: str,
     template: Template,
     delete_temp: bool = False,
     max_steps: int = 14,
-    incremental_solve: bool = False
+    incremental: bool = False
 ) -> Tuple[str, List[ClingoOutput]]:
     """
-    Run an iterative Clingo solve over steps 1..max_steps, collect all models,
-    and write results to a temporary file.
-
-    :param work_dir: Directory where temporary files are generated
-    :param input_file: Name of the input file to process
-    :param template: Template descriptor for do_template
-    :param delete_temp: Whether to delete temporary files after completion
-    :param max_steps: Maximum step to iterate through
-    :return: Tuple of (path to results file, list of parsed ClingoOutput)
+    Run a Clingo solve (static or incremental), collect models, record times per step,
+    write results incrementally, and plot a timing graph.
     """
-    print("Generating temporary files...")
-    tmp_dir, name, add_const, t = do_template(False, template, work_dir, input_file)
+    # Prepare template and files
+    tmp_dir, name, _, t_desc = do_template(False, template, work_dir, input_file)
+    files = _collect_asp_files(tmp_dir, name, t_desc)
+    result_path = Path("temp") / f"{tmp_dir}_{name}_results.txt"
+    pretty_path = result_path.with_name(f"{result_path.stem}_ex.txt")
 
-    # Collect all ASP files to load
-    files = files_to_load(tmp_dir, name, t)
-    files.extend([
-        "asp/judgement.lp",
-        "asp/constraints.lp",
-        "asp/step.lp"
-    ])
-    print(f"Files to load: {files}")
+    # Ensure clean output
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    result_path.write_text("")
+    pretty_path.write_text("")
 
-    result_path = os.path.join("temp", f"{tmp_dir}_{name}_results.txt")
-    print("Calling clingo...")
-
-    # Container for all found models
-    model_buf: List[clingo.Model] = []
-    last_model = None
-
-    start_time = time.time()
-
-    ctl = clingo.Control(["--parallel-mode=4"])
-    
-    # Load files into the solver
-    for f in files:
-        ctl.load(f)
-
-    t0 = time.time()
-    
-    t_global_start = time.time()
-
-    
-    
-    max_time_steps = get_num_time_steps(work_dir+"/"+input_file)
-
+    # Solver setup
+    ctl = _setup_control(files)
     ctl.ground([("base", [])])
 
-    if incremental_solve:
+    # Record step times
+    step_times: List[Tuple[int, float]] = []
 
-        hints = []  
-
-
-        print(f"Incremental solve enabled, max time steps: {max_time_steps}")
-        for step in range(1, max_time_steps + 1):
-        
-
-            # # (b) add exactly those senses/actions whose time‐argument == step
-            # new_senses = senses_by_time.get(step, [])
-            # new_actions = actions_by_time.get(step, [])
-            # if not new_senses and not new_actions:
-            #     print(f"No new senses or actions for step {step}; skipping.")
-            #     _step_durations.append((step, 0.0))
-            #     continue
-            # else:
-            #     for sense in new_senses:
-            #         ctl.ground([("senses", [sense[0], Number(sense[1])])])
-            #     for action in new_actions:
-            #         ctl.ground([("actions", [action[0], Number(action[1])])])
-
-            # (a) ground the new “step(step)” rule
-            ctl.ground([("step", [Number(step)])])
-
-            if step > 2:
-
-                # if consistent_model(ctl, hints):
-                #     print("The model is already consistent with step", step)
-                #     _step_durations.append((step, 0.0))
-
-                #     continue
-
-                    # clean up the control object to avoid stale assumptions
-
-                model_buf.clear()
-                t_step_start = time.time()
-
-                # --------------------------------------------------------------
-                # Attempt to solve with the primary guidance mode
-                # --------------------------------------------------------------
-                success = False
-
-                print(f"Step {step:02d} with hard guidance.")
-
-                assumptions = _make_assumptions(ctl, hints) if hints else []
-                ctl.configuration.solve.heuristic = "None"
-                ctl.solve(
-                    assumptions=assumptions,
-                    on_model=make_model_cb(model_buf, step, template, parser, presenter, name)
-                )
-                success = bool(model_buf)
-
-                # ----------------------------------------------------------
-                # Fallback to soft if hard guidance failed
-                # ----------------------------------------------------------
-                if not success:
-                    print(
-                        f"No model at horizon {step} under hard assumptions; "
-                        f"retrying with soft guidance."
-                    )
-                    model_buf.clear()
-                    _activate_hints(ctl, hints, step)
-                    ctl.configuration.solve.heuristic = "Vsids-Domain"
-                    ctl.solve(
-                        on_model=make_model_cb(model_buf, step, template, parser, presenter, name)
-                    )
-                    success = bool(model_buf)
-
-                # --------------------------------------------------------------
-                # Evaluate outcome of the (maybe retried) solve call
-                # --------------------------------------------------------------
-                t_step_end = time.time()
-                _step_durations.append((step, t_step_end - t_step_start))
-
-                if not success:
-                    print(f"No model at horizon {step}; terminating early.")
-                    break
-
-                current_model = model_buf[-1]
-                hints = _interesting_atoms(current_model)
-
-                # Periodically wipe *soft* hints to avoid over-rating stale advice.
-                # (Harmless in hard mode – nothing to release.)
-                if step % 5 == 0:
-                    _wipe_all_hints(ctl)
-                ctl.cleanup()
-
-                print(
-                    f"Step {step:02d} complete in {time.time() - t_global_start:.2f}s — "
-                    f"{len(hints)} steering atoms collected."
-                )
-    else:
-        for step in range(1, max_steps + 1):
-            ctl.ground([("step", [Number(step)])])
-            _step_durations.append((step, 0))
-        ctl.solve(
-            on_model=make_model_cb(model_buf, step, template, parser, presenter, name)
+    # Run solving
+    if incremental:
+        models, last_model = _run_incremental(
+            ctl, template, name,
+            work_dir, input_file,
+            result_path, pretty_path,
+            step_times
         )
-        if not model_buf:
-            print("No model found.")
-            os.makedirs(os.path.dirname(result_path), exist_ok=True)
-            with open(result_path, "w"):
-                pass
-            return result_path, []
+    else:
+        models, last_model = _run_static(
+            ctl, template, name,
+            max_steps,
+            result_path, pretty_path,
+            step_times
+        )
 
-        current_model = model_buf[-1]
-        # collect the time spent on the solve
-        hints = _interesting_atoms(current_model)
-        _step_durations.append((step+1, time.time() - t0))
+    # Plot timing graph
+    graph_path = Path("temp") / f"{tmp_dir}_{name}_timing.png"
+    _make_graph(step_times, graph_path)
+    print(f"Timing graph saved to {graph_path}")
 
-    if not model_buf:
-        print("No model found after solving.")
-        os.makedirs(os.path.dirname(result_path), exist_ok=True)
-        with open(result_path, "w"):
-            pass
-        return result_path, []
-
-
-    total_time = time.time() - start_time
-    print(f"Total time spent: {total_time:.2f} seconds.")
-
-    # Write all models to result file
-    os.makedirs(os.path.dirname(result_path), exist_ok=True)
-    with open(result_path, "w") as outf:
-        for m in model_buf:
-            outf.write(model_to_string(m) + "\n")
-    print(f"Results written to {result_path}")
-
-    # Additionally write human-readable models
-    formatted_path = os.path.join("temp", f"{tmp_dir}_{name}_results_ex.txt")
-    with open(formatted_path, "w") as outf:
-        for idx, m in enumerate(model_buf, start=1):
-            outf.write(f"--- Model {idx} ---\n")
-            outf.write(pretty(m, template, parser, presenter))
-            outf.write("\n\n")
-    print(f"Formatted results written to {formatted_path}")
-
-    # Parse final outputs
-    parsed_outputs = parser.parse_lines([model_to_string(current_model)])[0]
-
-    # Optionally clean up temporary files
+    # Optional cleanup
     if delete_temp:
-        temp_pattern = os.path.join("temp", f"{tmp_dir}_*")
-        subprocess.call(f"rm {temp_pattern}", shell=True)
+        subprocess.call(f"rm temp/{tmp_dir}_*", shell=True)
 
-    print("\nLast model:")
-    print(pretty(current_model, template, parser, presenter))
+    # Parse outputs
+    parsed = []
+    if last_model:
+        parsed = parser.parse_lines([model_to_string(last_model)])[0]
 
-    print("\nDone in {:.2f}s.".format(time.time() - t_global_start))
+    return str(result_path), parsed
 
-    # ------------------------------------------------------------------
-    # Persist artefacts: graph & zip
-    # ------------------------------------------------------------------
-    i = "incremental" if incremental_solve else "static"
-    _make_graph(Path("temp", f"{tmp_dir}_{name}_graph_{i}.png"))
 
-    return result_path, parsed_outputs
+# --- helper functions ---
+
+def _run_incremental(
+    ctl,
+    template,
+    name: str,
+    work_dir: str,
+    input_file: str,
+    result_path: Path,
+    pretty_path: Path,
+    step_times: List[Tuple[int, float]]
+):
+    models, hints = [], []
+    max_ts = get_num_time_steps(f"{work_dir}/{input_file}")
+    print(f"Incremental up to {max_ts} steps")
+
+    for step in range(1, max_ts + 1):
+        ctl.ground([("step", [Number(step)])])
+        if step <= 2:
+            continue
+
+        # Time this step
+        t0 = time.time()
+        models.clear()
+
+        # Hard guidance
+        ctl.configuration.solve.heuristic = "None"
+        ctl.solve(
+            assumptions=_make_assumptions(ctl, hints) if hints else [],
+            on_model=make_model_cb(models, step, template, parser, presenter, name)
+        )
+        hard = bool(models)
+
+        # Fallback to soft
+        if not hard:
+            ctl.cleanup()
+            models.clear()
+            _activate_hints(ctl, hints, step)
+            ctl.configuration.solve.heuristic = "Vsids-Domain"
+            print("No model found with hard guidance, using soft heuristics.")
+            ctl.solve(on_model=make_model_cb(models, step, template, parser, presenter, name))
+
+        # Record time and result
+        duration = time.time() - t0
+        step_times.append((step, duration))
+
+        if not models:
+            print(f"No model at step {step}, stopping.")
+            break
+
+        model = models[-1]
+        hints = _interesting_atoms(model)
+        if step % 5 == 0:
+            _wipe_all_hints(ctl)
+        ctl.cleanup()
+
+
+
+        with pretty_path.open("a") as file:
+            file.write(f"--- Model {step:02d} ---\n")
+            file.writelines(pretty(model, template, parser, presenter))
+            file.write("\n\n")
+
+        print(f"Step {step:02d}: {duration:.2f}s, written to results.")
+
+    return models, (models[-1] if models else None)
+
+
+def _run_static(
+    ctl,
+    template,
+    name: str,
+    max_steps: int,
+    result_path: Path,
+    pretty_path: Path,
+    step_times: List[Tuple[int, float]]
+):
+    models = []
+    t0 = time.time()
+    for step in range(1, max_steps + 1):
+        ctl.ground([("step", [Number(step)])])
+    ctl.solve(on_model=make_model_cb(models, step, template, parser, presenter, name))
+
+    duration = time.time() - t0
+    step_times.append((max_steps, duration))
+
+    if not models:
+        print("No model found.")
+        return [], None
+
+    model = models[-1]
+
+    with pretty_path.open("a") as file:
+        file.write(pretty(model, template, parser, presenter))
+
+    print(f"Static solve: {duration:.2f}s for {max_steps} steps.")
+    return models, model
+
 def do_template_old(add_const: bool, t: Template, dir: str, input_f: str) -> Tuple[str, str, str]:
     d = dir[len("data/") :]
     input_name = input_f[:-len(".lp")]

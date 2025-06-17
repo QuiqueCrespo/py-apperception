@@ -8,14 +8,12 @@
 % .m.b...
 % ...b...
 % .......
-% .......
 % east
 % 
 % Time 2:
 % .......
 % ..mb...
 % ...b...
-% .......
 % .......
 % east
 % 
@@ -24,7 +22,6 @@
 % ...mb..
 % ...b...
 % .......
-% .......
 % south
 % 
 % Time 4:
@@ -32,7 +29,6 @@
 % ....b..
 % ...m...
 % ...b...
-% .......
 % east
 % 
 % Time 5:
@@ -40,7 +36,6 @@
 % ....b..
 % ....m..
 % ...b...
-% .......
 % north
 % 
 % Time 6:
@@ -48,7 +43,6 @@
 % ....m..
 % .......
 % ...b...
-% .......
 % west
 % 
 % Time 7:
@@ -56,7 +50,6 @@
 % ...m...
 % .......
 % ...b...
-% .......
 % west
 % 
 % Time 8:
@@ -64,7 +57,6 @@
 % ..m....
 % .......
 % ...b...
-% .......
 % south
 % 
 % Time 9:
@@ -72,7 +64,6 @@
 % .......
 % ..m....
 % ...b...
-% .......
 % south
 % 
 % Time 10:
@@ -80,7 +71,6 @@
 % .......
 % .......
 % ..mb...
-% .......
 % west
 % 
 % Time 11:
@@ -88,7 +78,6 @@
 % .......
 % .......
 % .m.b...
-% .......
 % west
 % 
 % Time 12:
@@ -96,7 +85,6 @@
 % .......
 % .......
 % m..b...
-% .......
 % west
 % 
 % Time 13:
@@ -104,7 +92,6 @@
 % .......
 % .......
 % m..b...
-% .......
 % north
 % 
 % Time 14:
@@ -112,7 +99,6 @@
 % .......
 % m......
 % ...b...
-% .......
 % noop
 % 
 
@@ -184,72 +170,58 @@ is_object(obj_cell_1_1).
 is_object(obj_cell_1_2).
 is_object(obj_cell_1_3).
 is_object(obj_cell_1_4).
-is_object(obj_cell_1_5).
 is_object(obj_cell_2_1).
 is_object(obj_cell_2_2).
 is_object(obj_cell_2_3).
 is_object(obj_cell_2_4).
-is_object(obj_cell_2_5).
 is_object(obj_cell_3_1).
 is_object(obj_cell_3_2).
 is_object(obj_cell_3_3).
 is_object(obj_cell_3_4).
-is_object(obj_cell_3_5).
 is_object(obj_cell_4_1).
 is_object(obj_cell_4_2).
 is_object(obj_cell_4_3).
 is_object(obj_cell_4_4).
-is_object(obj_cell_4_5).
 is_object(obj_cell_5_1).
 is_object(obj_cell_5_2).
 is_object(obj_cell_5_3).
 is_object(obj_cell_5_4).
-is_object(obj_cell_5_5).
 is_object(obj_cell_6_1).
 is_object(obj_cell_6_2).
 is_object(obj_cell_6_3).
 is_object(obj_cell_6_4).
-is_object(obj_cell_6_5).
 is_object(obj_cell_7_1).
 is_object(obj_cell_7_2).
 is_object(obj_cell_7_3).
 is_object(obj_cell_7_4).
-is_object(obj_cell_7_5).
 is_cell(obj_cell_1_1).
 is_cell(obj_cell_1_2).
 is_cell(obj_cell_1_3).
 is_cell(obj_cell_1_4).
-is_cell(obj_cell_1_5).
 is_cell(obj_cell_2_1).
 is_cell(obj_cell_2_2).
 is_cell(obj_cell_2_3).
 is_cell(obj_cell_2_4).
-is_cell(obj_cell_2_5).
 is_cell(obj_cell_3_1).
 is_cell(obj_cell_3_2).
 is_cell(obj_cell_3_3).
 is_cell(obj_cell_3_4).
-is_cell(obj_cell_3_5).
 is_cell(obj_cell_4_1).
 is_cell(obj_cell_4_2).
 is_cell(obj_cell_4_3).
 is_cell(obj_cell_4_4).
-is_cell(obj_cell_4_5).
 is_cell(obj_cell_5_1).
 is_cell(obj_cell_5_2).
 is_cell(obj_cell_5_3).
 is_cell(obj_cell_5_4).
-is_cell(obj_cell_5_5).
 is_cell(obj_cell_6_1).
 is_cell(obj_cell_6_2).
 is_cell(obj_cell_6_3).
 is_cell(obj_cell_6_4).
-is_cell(obj_cell_6_5).
 is_cell(obj_cell_7_1).
 is_cell(obj_cell_7_2).
 is_cell(obj_cell_7_3).
 is_cell(obj_cell_7_4).
-is_cell(obj_cell_7_5).
 
 % Concepts
 is_concept(in_1).
@@ -292,77 +264,57 @@ permanent(isa2(p_right, obj_cell_3_4, obj_cell_4_4)).
 permanent(isa2(p_right, obj_cell_4_4, obj_cell_5_4)).
 permanent(isa2(p_right, obj_cell_5_4, obj_cell_6_4)).
 permanent(isa2(p_right, obj_cell_6_4, obj_cell_7_4)).
-permanent(isa2(p_right, obj_cell_1_5, obj_cell_2_5)).
-permanent(isa2(p_right, obj_cell_2_5, obj_cell_3_5)).
-permanent(isa2(p_right, obj_cell_3_5, obj_cell_4_5)).
-permanent(isa2(p_right, obj_cell_4_5, obj_cell_5_5)).
-permanent(isa2(p_right, obj_cell_5_5, obj_cell_6_5)).
-permanent(isa2(p_right, obj_cell_6_5, obj_cell_7_5)).
 permanent(isa2(p_below, obj_cell_1_1, obj_cell_1_2)).
 permanent(isa2(p_below, obj_cell_1_2, obj_cell_1_3)).
 permanent(isa2(p_below, obj_cell_1_3, obj_cell_1_4)).
-permanent(isa2(p_below, obj_cell_1_4, obj_cell_1_5)).
 permanent(isa2(p_below, obj_cell_2_1, obj_cell_2_2)).
 permanent(isa2(p_below, obj_cell_2_2, obj_cell_2_3)).
 permanent(isa2(p_below, obj_cell_2_3, obj_cell_2_4)).
-permanent(isa2(p_below, obj_cell_2_4, obj_cell_2_5)).
 permanent(isa2(p_below, obj_cell_3_1, obj_cell_3_2)).
 permanent(isa2(p_below, obj_cell_3_2, obj_cell_3_3)).
 permanent(isa2(p_below, obj_cell_3_3, obj_cell_3_4)).
-permanent(isa2(p_below, obj_cell_3_4, obj_cell_3_5)).
 permanent(isa2(p_below, obj_cell_4_1, obj_cell_4_2)).
 permanent(isa2(p_below, obj_cell_4_2, obj_cell_4_3)).
 permanent(isa2(p_below, obj_cell_4_3, obj_cell_4_4)).
-permanent(isa2(p_below, obj_cell_4_4, obj_cell_4_5)).
 permanent(isa2(p_below, obj_cell_5_1, obj_cell_5_2)).
 permanent(isa2(p_below, obj_cell_5_2, obj_cell_5_3)).
 permanent(isa2(p_below, obj_cell_5_3, obj_cell_5_4)).
-permanent(isa2(p_below, obj_cell_5_4, obj_cell_5_5)).
 permanent(isa2(p_below, obj_cell_6_1, obj_cell_6_2)).
 permanent(isa2(p_below, obj_cell_6_2, obj_cell_6_3)).
 permanent(isa2(p_below, obj_cell_6_3, obj_cell_6_4)).
-permanent(isa2(p_below, obj_cell_6_4, obj_cell_6_5)).
 permanent(isa2(p_below, obj_cell_7_1, obj_cell_7_2)).
 permanent(isa2(p_below, obj_cell_7_2, obj_cell_7_3)).
 permanent(isa2(p_below, obj_cell_7_3, obj_cell_7_4)).
-permanent(isa2(p_below, obj_cell_7_4, obj_cell_7_5)).
 
 % Walls
 permanent(isa(p_is_not_wall, obj_cell_1_1)).
 permanent(isa(p_is_not_wall, obj_cell_1_2)).
 permanent(isa(p_is_not_wall, obj_cell_1_3)).
 permanent(isa(p_is_not_wall, obj_cell_1_4)).
-permanent(isa(p_is_not_wall, obj_cell_1_5)).
 permanent(isa(p_is_not_wall, obj_cell_2_1)).
 permanent(isa(p_is_not_wall, obj_cell_2_2)).
 permanent(isa(p_is_not_wall, obj_cell_2_3)).
 permanent(isa(p_is_not_wall, obj_cell_2_4)).
-permanent(isa(p_is_not_wall, obj_cell_2_5)).
 permanent(isa(p_is_not_wall, obj_cell_3_1)).
 permanent(isa(p_is_not_wall, obj_cell_3_2)).
 permanent(isa(p_is_not_wall, obj_cell_3_3)).
 permanent(isa(p_is_not_wall, obj_cell_3_4)).
-permanent(isa(p_is_not_wall, obj_cell_3_5)).
 permanent(isa(p_is_not_wall, obj_cell_4_1)).
 permanent(isa(p_is_not_wall, obj_cell_4_2)).
 permanent(isa(p_is_not_wall, obj_cell_4_3)).
 permanent(isa(p_is_not_wall, obj_cell_4_4)).
-permanent(isa(p_is_not_wall, obj_cell_4_5)).
 permanent(isa(p_is_not_wall, obj_cell_5_1)).
 permanent(isa(p_is_not_wall, obj_cell_5_2)).
 permanent(isa(p_is_not_wall, obj_cell_5_3)).
 permanent(isa(p_is_not_wall, obj_cell_5_4)).
-permanent(isa(p_is_not_wall, obj_cell_5_5)).
 permanent(isa(p_is_not_wall, obj_cell_6_1)).
 permanent(isa(p_is_not_wall, obj_cell_6_2)).
 permanent(isa(p_is_not_wall, obj_cell_6_3)).
 permanent(isa(p_is_not_wall, obj_cell_6_4)).
-permanent(isa(p_is_not_wall, obj_cell_6_5)).
 permanent(isa(p_is_not_wall, obj_cell_7_1)).
 permanent(isa(p_is_not_wall, obj_cell_7_2)).
 permanent(isa(p_is_not_wall, obj_cell_7_3)).
 permanent(isa(p_is_not_wall, obj_cell_7_4)).
-permanent(isa(p_is_not_wall, obj_cell_7_5)).
 #program step(t).
 % ∃! clause for c_in_1 : at most one
 :-

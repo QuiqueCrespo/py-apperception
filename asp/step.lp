@@ -218,4 +218,3 @@ is_held_out_time_step(T) :-
 :- violation_kant_condition_spatial_unity.
 :- incorrect.
 
-

@@ -29,7 +29,6 @@ state_2d_2: List[str] = [
     ".m.b...",
     "...b..",
     ".......",
-    ".......",
 ]
 example_2d_2: Example = Example(
     initial_state=state_2d_2,
@@ -62,6 +61,25 @@ example_2d_3: Example = Example(
         Action.LEFT, Action.UP,
         Action.DOWN, Action.LEFT,
         Action.RIGHT, Action.DOWN
+    ],  # 12 moves
+    num_input=0,
+    num_held_out=0
+)
+
+example_2d_4: Example = Example(
+    initial_state=[
+        "......",
+        ".m.b..",
+        "....b.",
+        "......",
+    ],
+    actions=[
+        Action.DOWN, Action.LEFT,
+        Action.UP, Action.RIGHT,
+        Action.DOWN, Action.RIGHT,
+        Action.UP, Action.LEFT,
+        Action.DOWN, Action.RIGHT,
+        Action.UP, Action.RIGHT
     ],  # 12 moves
     num_input=0,
     num_held_out=0
