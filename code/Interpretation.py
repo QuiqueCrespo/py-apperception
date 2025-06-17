@@ -960,12 +960,15 @@ class Template:
     num_visual_predicates: Optional[int] = None
 
     def gen_interpretation(self, name: str) -> None:
+        """Write the interpretation file in one pass."""
         path = f"temp/{name}_interpretation.lp"
+        lines = [
+            "% Auto-generated from GenInterpretation",
+            "#program base.",
+            *self.interpretation_lines(),
+        ]
         with open(path, "w") as fh:
-            fh.write("% Auto-generated from GenInterpretation\n#program base.\n")
-        for line in self.interpretation_lines():
-            with open(path, "a") as fh:
-                fh.write(line + "\n")
+            fh.write("\n".join(lines) + "\n")
         print(f"Generated {path}")
 
     def interpretation_lines(self) -> List[str]:
@@ -1025,36 +1028,67 @@ class Template:
         return [divider, "% Constraints", divider, ""] + blind + spatial + noise_flag
 
     def gen_inits(self, name: str) -> None:
+        """Write all initial atoms in one go."""
         path = f"temp/{name}_init.lp"
-        with open(path, "w") as fh:
-            fh.write("% Auto-generated from GenInterpretation\n#program base.\n")
         atoms = [a for a in self.all_ground_atoms() if not self.is_static_atom(a)]
-        with open(path, "a") as fh:
-            for a in atoms:
-                fh.write(f"{{ {a} }} .\n")
+        lines = [
+            "% Auto-generated from GenInterpretation",
+            "#program base.",
+            *[f"{{ {a} }} ." for a in atoms],
+        ]
+        with open(path, "w") as fh:
+            fh.write("\n".join(lines) + "\n")
         print(f"Generated {path}")
 
     def is_static_atom(self, a: GroundAtom) -> bool:
         return isinstance(a, (GA, Perm)) and a.concept in self.frame.static_concepts
 
     def gen_subs(self, name: str) -> None:
+        """Generate variable groups and substitutions in one pass."""
         path = f"temp/{name}_subs.lp"
-        with open(path, "w") as fh:
-            fh.write("% Auto-generated from GenInterpretation\n#program base. \n")
-            fh.write("%-----------\n% var_types\n%-----------\n\n")
         frm = self.frame
-        with open(path, "a") as fh:
-            for v, ty in frm.vars:
-                fh.write(f"var_type({v}, {ty}).\n")
-            fh.write("\n\n%--------------\n% contains_var\n%--------------\n\n")
-            for vg in frm.var_groups:
-                n = self.frame.var_group_name(vg)
-                for v in vg:
-                    fh.write(f"contains_var(var_group_{n}, {v}).\n")
-                fh.write("\n")
-            fh.write("\n\n%----------\n% subs\n%----------\n\n")
-        for name, groups in self.all_subs():
-            self.print_subs_group(path, (name, groups))
+
+        lines = [
+            "% Auto-generated from GenInterpretation",
+            "#program base. ",
+            "%-----------",
+            "% var_types",
+            "%-----------",
+            "",
+            *[f"var_type({v}, {ty})." for v, ty in frm.vars],
+            "",
+            "%--------------",
+            "% contains_var",
+            "%--------------",
+            "",
+        ]
+
+        for vg in frm.var_groups:
+            n = self.frame.var_group_name(vg)
+            for v in vg:
+                lines.append(f"contains_var(var_group_{n}, {v}).")
+            lines.append("")
+
+        lines.extend([
+            "",
+            "%----------",
+            "% subs",
+            "%----------",
+            "",
+        ])
+
+        for group_name, groups in self.all_subs():
+            for i, subs in enumerate(groups, start=1):
+                lines.append(
+                    f"subs_group(var_group_{group_name}, subs_{group_name}_{i})."
+                )
+                for v, x in subs:
+                    lines.append(f"subs(subs_{group_name}_{i}, {v}, {x}).")
+                lines.append("")
+            lines.append("")
+
+        with open(path, "w") as fh:
+            fh.write("\n".join(lines) + "\n")
         print(f"Generated {path}")
 
     def print_subs_group(self, file: str, sg: Tuple[str, List[Any]]) -> None:
@@ -1073,14 +1107,28 @@ class Template:
             fh.write("\n")
 
     def gen_var_atoms(self, name: str) -> None:
+        """Write all variable atoms to disk with a single file write."""
         path = f"temp/{name}_var_atoms.lp"
-        with open(path, "w") as fh:
-            fh.write("% Auto-generated from GenInterpretation\n#program base.\n")
         frm = self.frame
+        lines = [
+            "% Auto-generated from GenInterpretation",
+            "#program base.",
+        ]
+
         for a in frm.all_var_fluents():
-            frm.print_var_fluent(path, a)
+            for vg in frm.all_var_groups(a):
+                lines.append(
+                    f"var_fluent({a}, var_group_{frm.var_group_name(vg)})."
+                )
+
         for a in frm.all_var_isas():
-            frm.print_var_isa(path, a)
+            for vg in frm.all_var_groups(a):
+                lines.append(
+                    f"var_permanent({a}, var_group_{frm.var_group_name(vg)})."
+                )
+
+        with open(path, "w") as fh:
+            fh.write("\n".join(lines) + "\n")
         print(f"Generated {path}")
 
     # ——— simple forwarders ———
