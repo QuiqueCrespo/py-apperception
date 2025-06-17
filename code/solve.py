@@ -626,6 +626,20 @@ def _interesting_atoms(model: Sequence[Symbol]) -> list[Symbol]:
     return [a for a in model if a.name in INTEREST]
 
 
+def _get_rule_id(atom: Symbol) -> Symbol | None:
+    """Return the rule identifier encoded in *atom* if present."""
+
+    if atom.name in {
+        "use_rule",
+        "rule_var_group",
+        "rule_causes_head",
+        "rule_arrow_head",
+        "rule_body",
+    } and atom.arguments:
+        return atom.arguments[0]
+    return None
+
+
 def _wipe_all_hints(ctrl: clingo.Control) -> None:
     """Set every known ``hint/1`` external to *false* and remove it."""
     for ext, is_on in list(_known_externals.items()):
@@ -691,9 +705,25 @@ def _make_graph(step_durations,outfile: Path) -> None:
     _plt.savefig(outfile, dpi=150)
     _plt.close()
 
-def _make_assumptions(ctrl: clingo.Control, atoms: Iterable[Symbol]) -> List[Tuple[int, bool]]:
-    """Translate *atoms* to solver literals for the ``assumptions`` API."""
-    return [(Function(atom.name, atom.arguments), True) for atom in atoms]
+def _make_assumptions(
+    ctrl: clingo.Control, atoms: Iterable[Symbol]
+) -> tuple[list[tuple[int, bool]], dict[int, Symbol]]:
+    """Translate *atoms* to solver literals for ``assumptions`` and return a
+    mapping from solver literal to ``Symbol`` for later lookup."""
+
+    assumptions: list[tuple[int, bool]] = []
+    mapping: dict[int, Symbol] = {}
+    for atom in atoms:
+        sym = Function(atom.name, atom.arguments)
+        try:
+            lit = ctrl.symbolic_atoms[sym].literal
+        except KeyError:
+            # If the symbolic atom is unknown just skip it
+            continue
+        assumptions.append((lit, True))
+        mapping[lit] = sym
+
+    return assumptions, mapping
 
 def _collect_asp_files(tmp_dir, name, t_desc):
     files = files_to_load(tmp_dir, name, t_desc)
@@ -798,11 +828,32 @@ def _run_incremental(
 
         # Hard guidance
         ctl.configuration.solve.heuristic = "None"
-        ctl.solve(
-            assumptions=_make_assumptions(ctl, hints) if hints else [],
-            on_model=make_model_cb(models, step, template, parser, presenter, name)
+        assumptions, lit_map = _make_assumptions(ctl, hints) if hints else ([], {})
+        core: list[int] = []
+        result = ctl.solve(
+            assumptions=assumptions,
+            on_model=make_model_cb(models, step, template, parser, presenter, name),
+            on_core=lambda c: core.extend(c)
         )
-        hard = bool(models)
+        hard = result.satisfiable
+
+        if not hard and core:
+            core_syms = [lit_map[l] for l in core if l in lit_map]
+            rule_ids = {rid for sym in core_syms if (rid := _get_rule_id(sym)) is not None}
+            if rule_ids:
+                print(
+                    "Unsatisfiable core detected; removing rules " + ", ".join(map(str, rule_ids))
+                )
+                hints = [h for h in hints if _get_rule_id(h) not in rule_ids]
+                assumptions, lit_map = _make_assumptions(ctl, hints)
+                core.clear()
+                models.clear()
+                result = ctl.solve(
+                    assumptions=assumptions,
+                    on_model=make_model_cb(models, step, template, parser, presenter, name),
+                    on_core=lambda c: core.extend(c)
+                )
+                hard = result.satisfiable
 
         # Fallback to soft
         if not hard:
