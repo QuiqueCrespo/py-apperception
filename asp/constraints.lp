@@ -65,7 +65,7 @@ violation(bad_rule_order(R1, R2)) :-
 
 :-  rule_body(R, A),
     rule_body(R, B),
-    definitely_incompossible_var_atoms(A, B).    
+    incompossible(A, B).  
 
 :-  rule_body(R, A),
     rule_arrow_head(R, A).
@@ -75,7 +75,7 @@ violation(bad_rule_order(R1, R2)) :-
 
 :-  rule_body(R, A),
     rule_arrow_head(R, B),
-    definitely_incompossible_var_atoms(A, B).    
+    incompossible(A, B). 
 
 % Unsafe rules
 :-  rule_arrow_head(R, s(_, V)),

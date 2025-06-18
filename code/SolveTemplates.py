@@ -135,7 +135,7 @@ def frame_eca(hard_code_space, n):
         var_groups=[
             [V("s"), V("s2"), V("s3")],
         ],
-        aux_files=["space11.lp"] if hard_code_space else []
+        aux_files=["aux_eca_space11.lp"] if hard_code_space else []
     )
 
 def template_eca_n(hard_code_space, n_sensors):
@@ -172,47 +172,47 @@ def template_eca(hard_code_space):
     """
     return template_eca_n(hard_code_space, 11)
 
-# A minimal frame for ECA with just two sensors
-frame_eca_small = Frame(
-    types=[T("sensor"), T("grid"), T("object")],
-    type_hierarchy=[
-        (T("object"), [T("sensor"), T("grid")])
-    ],
-    objects=[
-        (O("cell_1"), T("sensor")),
-        (O("cell_2"), T("sensor")),
-        (O("grid"), T("grid"))
-    ],
-    exogeneous_objects=[],
-    permanent_concepts=[],
-    fluid_concepts=[
-        (C("on"), [T("sensor")]),
-        (C("off"), [T("sensor")]),
-        (C("part"), [T("sensor"), T("grid")]),
-    ],
-    input_concepts=[C("on"), C("off")],
-    static_concepts=[],
-    vars=[
-        (V("s"), T("sensor")),
-        (V("s2"), T("sensor")),
-    ],
-    var_groups=[
-        [V("s")],
-        [V("s"), V("s2")],
-    ],
-    aux_files=[]
-)
+# # A minimal frame for ECA with just two sensors
+# frame_eca_small = Frame(
+#     types=[T("sensor"), T("grid"), T("object")],
+#     type_hierarchy=[
+#         (T("object"), [T("sensor"), T("grid")])
+#     ],
+#     objects=[
+#         (O("cell_1"), T("sensor")),
+#         (O("cell_2"), T("sensor")),
+#         (O("grid"), T("grid"))
+#     ],
+#     exogeneous_objects=[],
+#     permanent_concepts=[],
+#     fluid_concepts=[
+#         (C("on"), [T("sensor")]),
+#         (C("off"), [T("sensor")]),
+#         (C("part"), [T("sensor"), T("grid")]),
+#     ],
+#     input_concepts=[C("on"), C("off")],
+#     static_concepts=[],
+#     vars=[
+#         (V("s"), T("sensor")),
+#         (V("s2"), T("sensor")),
+#     ],
+#     var_groups=[
+#         [V("s")],
+#         [V("s"), V("s2")],
+#     ],
+#     aux_files=[]
+# )
 
-template_eca_small = Template(
-    dir="eca",
-    frame=frame_eca_small,
-    min_body_atoms=0,
-    max_body_atoms=2,
-    num_arrow_rules=1,
-    num_causes_rules=3,
-    num_visual_predicates=None,
-    use_noise=False
-)
+# template_eca_small = Template(
+#     dir="eca",
+#     frame=frame_eca_small,
+#     min_body_atoms=0,
+#     max_body_atoms=2,
+#     num_arrow_rules=1,
+#     num_causes_rules=3,
+#     num_visual_predicates=None,
+#     use_noise=False
+# )
 
 
 def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> Frame:

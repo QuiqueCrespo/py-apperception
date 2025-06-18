@@ -1202,7 +1202,7 @@ class Template:
         if flag_ablation_remove_kant_condition_conceptual_unity:
             return (["", "% [Ignoring conceptual unity condition]", ""], 1)
         h = [divider, "% Conceptual structure", divider, ""]
-        return (h +["#program step(t).\n"]+ self.frame.gen_xor_constraints() + self.frame.gen_exists_constraints() + ["#program base."], 1)
+        return (h + self.frame.gen_xor_constraints() + self.frame.gen_exists_constraints() , 1)
 
     @staticmethod
     def fixed_point(f, a):

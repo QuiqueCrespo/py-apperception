@@ -200,21 +200,22 @@ is_concept(c_off).
 
 #program step(t).
 
+
 % Input exclusions
 % Every sensor is either on or off
 % S : sensor → on(S) ⊕ off(S)
 
 % At most one
 :-
-	holds(s(c_on, X), T),
-	holds(s(c_off, X), T).
+	holds(s(c_on, X), t),
+	holds(s(c_off, X), t).
 
 % At least one
 :-
 	permanent(isa(t_sensor, X)),
-	is_time(T),
-	not holds(s(c_on, X), T),
-	not holds(s(c_off, X), T).
+	is_time(t),
+	not holds(s(c_on, X), t),
+	not holds(s(c_off, X), t).
 
 #program base.
 % Incompossibility

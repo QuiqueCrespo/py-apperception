@@ -167,6 +167,7 @@ violation(spatial_cycle) :-
 %------------------------------------------------------------------------------
 
 incorrect :-
+    is_time(T),
     hidden(A, T),
     not holds(A, T).
 

@@ -22,7 +22,7 @@ except Exception:  # pragma: no cover - optional dependency
 
 from SolveTemplates import (
     template_sokoban,
-    template_eca_small,
+    # template_eca_small,
     template_eca,
     make_eca_template,
     template_pacman,
@@ -207,60 +207,60 @@ def all_eca_templates(input_f):
 # ECA iteration using the general code for template iteration
 # -------------------------------------------------------------------------------
 
-def solve_eca_general(input_f):
-    """
-    Solves ECA problems using general template iteration code.
+# def solve_eca_general(input_f):
+#     """
+#     Solves ECA problems using general template iteration code.
 
-    Args:
-        input_f (str): The input file prefix.
-    """
-    # Haskell: do solve_iteratively "data/misc" input_f (all_general_eca_templates input_f) False False
-    solve_iteratively("data/misc", input_f, all_general_eca_templates(input_f), False, False)
+#     Args:
+#         input_f (str): The input file prefix.
+#     """
+#     # Haskell: do solve_iteratively "data/misc" input_f (all_general_eca_templates input_f) False False
+#     solve_iteratively("data/misc", input_f, all_general_eca_templates(input_f), False, False)
 
-def all_general_eca_templates(input_f):
-    """
-    Generates all general ECA templates by augmenting a base template.
+# def all_general_eca_templates(input_f):
+#     """
+#     Generates all general ECA templates by augmenting a base template.
 
-    Args:
-        input_f (str): The input file prefix. (Note: this argument is unused in
-                       the Haskell `all_general_eca_templates` logic.)
+#     Args:
+#         input_f (str): The input file prefix. (Note: this argument is unused in
+#                        the Haskell `all_general_eca_templates` logic.)
 
-    Returns:
-        list: A list of (description_string, Template_object) tuples.
-    """
-    # Haskell: f (i, t) = ("Template " ++ show i, t)
-    # Haskell: ps = parameter_lists [T "sensor"] 100
-    # Haskell: ts = map (augment_template t') ps
-    # Haskell: t' = template_eca_small
+#     Returns:
+#         list: A list of (description_string, Template_object) tuples.
+#     """
+#     # Haskell: f (i, t) = ("Template " ++ show i, t)
+#     # Haskell: ps = parameter_lists [T "sensor"] 100
+#     # Haskell: ts = map (augment_template t') ps
+#     # Haskell: t' = template_eca_small
     
-    t_prime = template_eca_small
-    # Assuming Type("sensor") is defined
-    ps = parameter_lists([T("sensor")], 100)
-    ts = [augment_template(t_prime, p) for p in ps]
+#     t_prime = template_eca_small
+#     # Assuming Type("sensor") is defined
+#     ps = parameter_lists([T("sensor")], 100)
+#     ts = [augment_template(t_prime, p) for p in ps]
 
-    # zip [1..] ts
-    # In Python, enumerate starts from 0, so we add 1 for 1-based indexing.
-    return [(f"Template {i+1}", t) for i, t in enumerate(ts)]
+#     # zip [1..] ts
+#     # In Python, enumerate starts from 0, so we add 1 for 1-based indexing.
+#     return [(f"Template {i+1}", t) for i, t in enumerate(ts)]
 
-def output_general_eca_templates(input_f, n):
-    """
-    Outputs LaTeX representations of general ECA templates.
+# def output_general_eca_templates(input_f, n):
+#     """
+#     Outputs LaTeX representations of general ECA templates.
 
-    Args:
-        input_f (str): The input file prefix. (Unused in Haskell logic).
-        n (int): The number of templates to output.
-    """
-    # Haskell: Monad.forM_ xs f where xs = map snd $ take n (all_general_eca_templates input_f); f t = Monad.forM_ (latex_frame t) putStrLn
+#     Args:
+#         input_f (str): The input file prefix. (Unused in Haskell logic).
+#         n (int): The number of templates to output.
+#     """
+#     # Haskell: Monad.forM_ xs f where xs = map snd $ take n (all_general_eca_templates input_f); f t = Monad.forM_ (latex_frame t) putStrLn
     
-    # xs = map snd $ take n (all_general_eca_templates input_f)
-    # In Python: get the Template objects from the generated list
-    templates_to_output = [t for _, t in all_general_eca_templates(input_f)][:n]
+#     # xs = map snd $ take n (all_general_eca_templates input_f)
+#     # In Python: get the Template objects from the generated list
+#     templates_to_output = [t for _, t in all_general_eca_templates(input_f)][:n]
 
-    # f t = Monad.forM_ (latex_frame t) putStrLn
-    for t_obj in templates_to_output:
-        # for line in latex_frame(t_obj):
-        #     print(line)
-        continue
+#     # f t = Monad.forM_ (latex_frame t) putStrLn
+#     for t_obj in templates_to_output:
+#         # for line in latex_frame(t_obj):
+#         #     print(line)
+#         continue
 
 
 # ----------------------- Template-iteration utilities -----------------------
@@ -728,15 +728,29 @@ def _make_assumptions(
 def _collect_asp_files(tmp_dir, name, t_desc):
     files = files_to_load(tmp_dir, name, t_desc)
     files += ["asp/judgement.lp", "asp/constraints.lp", "asp/step.lp"]
-    print(f"Files to load: {files}")
     return files
 
 def _setup_control(files):
-    ctl = clingo.Control(["--parallel-mode=4"])
+    ctl = clingo.Control(["--parallel-mode=4", "--opt-strategy=usc", "--opt-usc-shrink=min"])
 
     for f in files:
         ctl.load(f)
     return ctl
+
+def _minimal_core(
+    ctl: clingo.Control, core_syms: list[Symbol]
+) -> list[Symbol]:
+    shrunk = core_syms.copy()
+    for lit in core_syms:
+        # try without lit
+        test = [(l, True) for l in shrunk if l != lit]
+        result = ctl.solve(assumptions=test)
+        ctl.cleanup()
+        if not result.satisfiable:
+            shrunk.remove(lit)
+            print(f"Removed {lit} from core, remaining: {len(shrunk)}")
+
+    return shrunk
 
 def do_solve(
     work_dir: str,
@@ -764,6 +778,11 @@ def do_solve(
     # Solver setup
     ctl = _setup_control(files)
     ctl.ground([("base", [])])
+
+    print("Solve check")
+    ctl.solve(
+        on_model=lambda m: print(f"Model found: {model_to_string(m.symbols(shown=True))}")
+    )
 
     # Record step times
     step_times: List[Tuple[int, float]] = []
@@ -819,7 +838,7 @@ def _run_incremental(
 
     for step in range(1, max_ts + 1):
         ctl.ground([("step", [Number(step)])])
-        if step <= 2:
+        if step <= 1:
             continue
 
         # Time this step
@@ -830,30 +849,32 @@ def _run_incremental(
         ctl.configuration.solve.heuristic = "None"
         assumptions, lit_map = _make_assumptions(ctl, hints) if hints else ([], {})
         core: list[int] = []
+        print(f"Step {step:02d} with {len(assumptions)} assumptions")
         result = ctl.solve(
-            assumptions=assumptions,
+            assumptions=[(lit_map[a],v) for a, v in assumptions],
             on_model=make_model_cb(models, step, template, parser, presenter, name),
             on_core=lambda c: core.extend(c)
         )
+        print(core)
         hard = result.satisfiable
 
         if not hard and core:
+            
+            print(f"Found core symbols at step {step}: {len(core)}")
             core_syms = [lit_map[l] for l in core if l in lit_map]
-            rule_ids = {rid for sym in core_syms if (rid := _get_rule_id(sym)) is not None}
-            if rule_ids:
-                print(
-                    "Unsatisfiable core detected; removing rules " + ", ".join(map(str, rule_ids))
-                )
-                hints = [h for h in hints if _get_rule_id(h) not in rule_ids]
-                assumptions, lit_map = _make_assumptions(ctl, hints)
-                core.clear()
-                models.clear()
-                result = ctl.solve(
-                    assumptions=assumptions,
-                    on_model=make_model_cb(models, step, template, parser, presenter, name),
-                    on_core=lambda c: core.extend(c)
-                )
-                hard = result.satisfiable
+            min_core = _minimal_core(ctl, core_syms)
+            print(f"Minimal core symbols: {len(min_core)}")
+
+            assumptions = [assumption for assumption in assumptions if lit_map[assumption[0]] not in min_core]
+            print(f"Remaining assumptions: {len(assumptions)}")
+            core.clear()
+            models.clear()
+            result = ctl.solve(
+                assumptions=[(lit_map[a], v) for a, v in assumptions],
+                on_model=make_model_cb(models, step, template, parser, presenter, name),
+                on_core=lambda c: core.extend(c)
+            )
+            hard = result.satisfiable
 
         # Fallback to soft
         if not hard:

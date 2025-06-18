@@ -232,7 +232,6 @@ def output_rule2(dir_path, f, ri, bi, t, ot, ns, b, touch_ss, task_type):
 
     with open(f, "w") as file:
         file.write("#program base.\n")
-        file.write("#program base.\n")
         file.write("%------------------------------------------------------------------------------\n")
         file.write(f"% This file was generated using rule {ri}\n")
         file.write(f"% with configuration {b}\n")
@@ -298,7 +297,6 @@ def output_rule2(dir_path, f, ri, bi, t, ot, ns, b, touch_ss, task_type):
             file.write("is_concept(c_touch).\n")
         file.write("\n")
 
-        file.write("#program step(t).\n")
         file.write("\n")
         file.write("% Input exclusions\n")
         file.write("% Every sensor is either on or off\n")
@@ -306,15 +304,15 @@ def output_rule2(dir_path, f, ri, bi, t, ot, ns, b, touch_ss, task_type):
         file.write("\n")
         file.write("% At most one\n")
         file.write(":-\n")
-        file.write("\tholds(s(c_on, X), T),\n")
-        file.write("\tholds(s(c_off, X), T).\n")
+        file.write("\tholds(s(c_on, X), t),\n")
+        file.write("\tholds(s(c_off, X), t).\n")
         file.write("\n")
         file.write("% At least one\n")
         file.write(":-\n")
         file.write("\tpermanent(isa(t_sensor, X)),\n")
-        file.write("\tis_time(T),\n")
-        file.write("\tnot holds(s(c_on, X), T),\n")
-        file.write("\tnot holds(s(c_off, X), T).\n")
+        file.write("\tis_time(t),\n")
+        file.write("\tnot holds(s(c_on, X), t),\n")
+        file.write("\tnot holds(s(c_off, X), t).\n")
         file.write("\n")
         if touch_ss:
             file.write("% Touch sensor exclusions\n")
@@ -347,7 +345,6 @@ def output_rule2(dir_path, f, ri, bi, t, ot, ns, b, touch_ss, task_type):
             file.write("aux_c_touch(X, t) :-\n")
             file.write("\tholds(s2(c_touch, X, _), t).\n")
 
-        file.write("#program base.\n")
         file.write("% Incompossibility\n")
         file.write("incompossible(s(c_on, X), s(c_off, X)) :-\n")
         file.write("\tpermanent(isa(t_sensor, X)).\n")
