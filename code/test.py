@@ -15,6 +15,7 @@ import logging
 import time
 from pathlib import Path
 from typing import Callable, Iterable, List, Sequence, Tuple
+import gc
 
 import clingo
 from clingo.symbol import Function, Number
@@ -140,6 +141,8 @@ def main() -> None:
 
     models: list[list[clingo.Symbol]] = []
     ctl.solve(on_model=make_on_model(models), on_statistics=make_on_stats(2))
+    ctl.cleanup()
+    gc.collect()
 
     if not models:
         log.error("No model for steps 1–2 – aborting.")
@@ -166,6 +169,8 @@ def main() -> None:
             on_statistics=make_on_stats(step),
             assumptions=assumptions,
         )
+        ctl.cleanup()
+        gc.collect()
 
         if not models:
             log.warning("UNSAT at step %d – stopping.", step)

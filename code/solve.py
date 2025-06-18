@@ -11,6 +11,7 @@ from clingo.symbol import Number, Function, Symbol
 from typing import Iterable, Sequence
 from Interpretation import Type as T, Object, Var, Concept, Template
 from ClingoParser import ClingoOutput, ClingoResult, ClingoParser, ClingoPresenter, write_latex
+import gc
 
 from pathlib import Path
 
@@ -749,6 +750,8 @@ def _minimal_core(
         if not result.satisfiable:
             shrunk.remove(lit)
             print(f"Removed {lit} from core, remaining: {len(shrunk)}")
+        del result
+        gc.collect()
 
     return shrunk
 
@@ -857,6 +860,8 @@ def _run_incremental(
         )
         print(core)
         hard = result.satisfiable
+        del result
+        gc.collect()
 
         if not hard and core:
             
@@ -875,6 +880,8 @@ def _run_incremental(
                 on_core=lambda c: core.extend(c)
             )
             hard = result.satisfiable
+            del result
+            gc.collect()
 
         # Fallback to soft
         if not hard:
