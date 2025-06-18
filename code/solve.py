@@ -1,21 +1,30 @@
-import sys
-import subprocess
-from itertools import product, count
-from dataclasses import dataclass
-from typing import List, Tuple, Union, Iterator, Optional
+"""Command line interface for solving ASP tasks with CLINGO templates."""
+
+from __future__ import annotations
+
+import argparse
 import os
 import re
+import subprocess
 import time
-import clingo
-from clingo.symbol import Number, Function, Symbol
-from typing import Iterable, Sequence
-from Interpretation import Type as T, Object, Var, Concept, Template
-from ClingoParser import ClingoOutput, ClingoResult, ClingoParser, ClingoPresenter, write_latex
-
+from dataclasses import dataclass
+from itertools import count, product
 from pathlib import Path
+from typing import Iterable, Iterator, List, Optional, Sequence, Tuple, Union
 
+import clingo
+from clingo.symbol import Function, Number, Symbol
 
-try:
+from Interpretation import Type as T, Object, Var, Concept, Template
+from ClingoParser import (
+    ClingoOutput,
+    ClingoResult,
+    ClingoParser,
+    ClingoPresenter,
+    write_latex,
+)
+
+try:  # pragma: no cover - optional dependency
     import matplotlib.pyplot as _plt
 except Exception:  # pragma: no cover - optional dependency
     _plt = None
@@ -32,27 +41,55 @@ import SokobanTypes
 import PacmanData2D as PacmanData
 import PacmanTypes
 
+from SolveTemplates import (
+    template_sokoban,
+    template_eca_small,
+    template_eca,
+    make_eca_template,
+    template_pacman,
+)
+import SokobanData2D as SokobanData
+import SokobanTypes
+import PacmanData2D as PacmanData
+import PacmanTypes
 
-# Constants
+
+
+# ---------------------------------------------------------------------------
+# configuration
+# ---------------------------------------------------------------------------
+
 xor_group_file_name = "temp/gen_xor_groups.lp"
-flag_condor: bool = False
-flag_delete_temp: bool = False
-flag_output_latex: bool = False
-flag_ablation_remove_cost: bool = False
-flag_ablation_remove_permanents: bool = False
-const_time_limit: int = 14400
+
+@dataclass
+class Config:
+    """Runtime configuration flags for the solver."""
+
+    condor: bool = False
+    delete_temp: bool = False
+    output_latex: bool = False
+    ablation_remove_cost: bool = False
+    ablation_remove_permanents: bool = False
+    time_limit: int = 14400
+
+
+CONFIG = Config()
 
 show_answer_set: bool = False
 show_extraction: bool = True
 
 
 
-parser = ClingoParser(show_answer_set=show_answer_set,
-                     show_extraction=show_extraction)
+parser = ClingoParser(
+    show_answer_set=show_answer_set,
+    show_extraction=show_extraction,
+)
 
-presenter = ClingoPresenter(show_answer_set=show_answer_set,
-                            show_extraction=show_extraction,
-                            flag_output_latex=flag_output_latex)
+presenter = ClingoPresenter(
+    show_answer_set=show_answer_set,
+    show_extraction=show_extraction,
+    flag_output_latex=CONFIG.output_latex,
+)
 
 # Track timings
 _step_durations: list[tuple[int, float]] = []  
@@ -80,23 +117,29 @@ INTEREST: set[str] = {
 # ---------------------------- Sokoban-specific solving ----------------------------
 
 def get_sokoban_data(name: str) -> Tuple[int, int, int]:
-    e = next((i for i in SokobanData.sokoban_examples if i[0] == name),None)
-    if not e :
+    """Return dimensions and block count for the Sokoban example ``name``."""
+
+    e = next((i for i in SokobanData.sokoban_examples if i[0] == name), None)
+    if not e:
         raise ValueError(f"No sokoban entry called {name}")
     return extract_sokoban_data(e[1])
 
 
 def extract_sokoban_data(e: SokobanTypes.Example) -> Tuple[int, int, int]:
+    """Return width, height and block count from a Sokoban example."""
+
     s = e.initial_state  # List[str]
     max_x = len(s[0])
     max_y = len(s)
-    num_blocks = sum(row.count('b') for row in s)
+    num_blocks = sum(row.count("b") for row in s)
     return max_x, max_y, num_blocks
 
 
 # ---------------------------- Pacman-specific solving -----------------------------
 
 def get_pacman_data(name: str) -> Tuple[int, int, int, int]:
+    """Return grid size and entity counts for the Pacman example ``name``."""
+
     e = next((i for i in PacmanData.pacman_examples if i[0] == name), None)
     if not e:
         raise ValueError(f"No pacman entry called {name}")
@@ -104,15 +147,19 @@ def get_pacman_data(name: str) -> Tuple[int, int, int, int]:
 
 
 def extract_pacman_data(e: PacmanTypes.Example) -> Tuple[int, int, int, int]:
+    """Return width, height, pellet and ghost count from a Pacman example."""
+
     s = e.initial_state
     max_x = len(s[0])
     max_y = len(s)
-    num_pellets = sum(row.count('o') for row in s)
-    num_ghosts = sum(row.count('g') for row in s)
+    num_pellets = sum(row.count("o") for row in s)
+    num_ghosts = sum(row.count("g") for row in s)
     return max_x, max_y, num_pellets, num_ghosts
 
 
-def solve_sokoban(example_name: str, incremental : bool) -> None:
+def solve_sokoban(example_name: str, incremental: bool) -> None:
+    """Solve a Sokoban instance."""
+
     print(f"Using example: {example_name}")
 
     max_x, max_y, n_blocks = get_sokoban_data(example_name)
@@ -131,7 +178,7 @@ def solve_sokoban(example_name: str, incremental : bool) -> None:
     
     # print(f"Found {len(solutions)} solutions.")
     # for ans in answer:
-    #     if flag_output_latex:
+    #     if CONFIG.output_latex:
     #         write_latex(t, ans)
     # outputs = [presenter.present(t, ans) for ans in answer]
     print(presenter.present(t, solutions))
@@ -559,7 +606,7 @@ def do_solve_old(directory: str, input_file: str, template: Template) -> Tuple[s
     with open(result_path) as f:
         lines = f.read().splitlines()
     outputs = parser.parse_lines(lines)
-    if flag_delete_temp:
+    if CONFIG.delete_temp:
         subprocess.call(f"rm temp/{name}_*", shell=True)
     return result_path, outputs
 
@@ -918,10 +965,14 @@ def gen_bash(dir: str, input_f: str, add_const: bool, t: Template) -> Tuple[str,
     aux_s = " ".join(auxs)
     results_f = f"{d}{name}_results.txt"
     handle = f" > {results_f}"
-    args = f" --stats --verbose=2 --warn=no-atom-undefined --time-limit={const_time_limit} "
-    args_prime = args + f"-c k_xor_group=$1 {xor_group_file_name} " if add_const else args
-    clingo = "/vol/lab/clingo5/clingo " if flag_condor else "clingo "
-    costs = "" if flag_ablation_remove_cost else " asp/costs.lp "
+    args = (
+        f" --stats --verbose=2 --warn=no-atom-undefined --time-limit={CONFIG.time_limit} "
+    )
+    args_prime = (
+        args + f"-c k_xor_group=$1 {xor_group_file_name} " if add_const else args
+    )
+    clingo = "/vol/lab/clingo5/clingo " if CONFIG.condor else "clingo "
+    costs = "" if CONFIG.ablation_remove_cost else " asp/costs.lp "
     s = (
         clingo + args_prime + task_file + " " + init_f + " " + subs_f + " " +
         rules_f + " " + interp_f + " " + aux_s +
@@ -934,20 +985,30 @@ def gen_bash(dir: str, input_f: str, add_const: bool, t: Template) -> Tuple[str,
     return fpath, results_f
 
 
-def main() -> None:
-    args = sys.argv[1:]
-    print("Solving " + " ".join(args))
-    if len(args) >= 2 and args[0] == "sokoban":
-        inc = args[2].lower() == "true" if len(args) > 2 else False
-        solve_sokoban(args[1], inc)
-    elif len(args) >= 2 and args[0] == "pacman":
-        inc = args[2].lower() == "true" if len(args) > 2 else False
-        solve_pacman(args[1], inc)
-    elif len(args) >= 2 and args[0] == "eca":
-        inc = args[2].lower() == "true" if len(args) > 2 else False
-        solve_eca(args[1], inc)
-    else:
-        print("Usage: solve.py sokoban|pacman|eca <input_name> [True|False]")
+def parse_args(argv: Optional[Sequence[str]] | None = None) -> argparse.Namespace:
+    """Return parsed command line arguments."""
+
+    parser = argparse.ArgumentParser(description="Solve benchmark tasks")
+    parser.add_argument("domain", choices=["sokoban", "pacman", "eca"], help="task domain")
+    parser.add_argument("input_name", help="name of the input instance")
+    parser.add_argument(
+        "--incremental",
+        action="store_true",
+        help="use incremental solving",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Optional[Sequence[str]] | None = None) -> None:
+    """Entry point for the command line interface."""
+
+    args = parse_args(argv)
+    if args.domain == "sokoban":
+        solve_sokoban(args.input_name, args.incremental)
+    elif args.domain == "pacman":
+        solve_pacman(args.input_name, args.incremental)
+    else:  # ECA
+        solve_eca(args.input_name, args.incremental)
 
 if __name__ == "__main__":
     main()
