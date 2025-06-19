@@ -1,3 +1,5 @@
+"""Command-line and API access for solving puzzle instances with Clingo."""
+
 import sys
 import subprocess
 from itertools import product, count
@@ -6,6 +8,8 @@ from typing import List, Tuple, Union, Iterator, Optional
 import os
 import re
 import time
+import logging
+import argparse
 import clingo
 from clingo.symbol import Number, Function, Symbol
 from typing import Iterable, Sequence
@@ -20,6 +24,8 @@ try:
     import matplotlib.pyplot as _plt
 except Exception:  # pragma: no cover - optional dependency
     _plt = None
+
+logger = logging.getLogger(__name__)
 
 from SolveTemplates import (
     template_sokoban,
@@ -113,66 +119,74 @@ def extract_pacman_data(e: PacmanTypes.Example) -> Tuple[int, int, int, int]:
     return max_x, max_y, num_pellets, num_ghosts
 
 
-def solve_sokoban(example_name: str, incremental : bool) -> None:
-    print(f"Using example: {example_name}")
+def solve_sokoban(example_name: str, incremental: bool = False) -> Optional[str]:
+    """Solve a Sokoban instance and return the formatted result."""
+    logger.info("Using example: %s", example_name)
 
     max_x, max_y, n_blocks = get_sokoban_data(example_name)
     t = template_sokoban(max_x, max_y, n_blocks)
 
-    print(f"max_x: {max_x} max_y: {max_y} n_blocks: {n_blocks}")
+    logger.info("max_x: %s max_y: %s n_blocks: %s", max_x, max_y, n_blocks)
     input_f = f"predict_{example_name}.lp"
     _, solutions = do_solve("data/sokoban", input_f, t, incremental=incremental)
 
-    answer = solutions
-
-
     if not solutions:
-        print("No solution found.")
-        return
+        logger.warning("No solution found.")
+        return None
     
     # print(f"Found {len(solutions)} solutions.")
     # for ans in answer:
     #     if flag_output_latex:
     #         write_latex(t, ans)
     # outputs = [presenter.present(t, ans) for ans in answer]
-    print(presenter.present(t, solutions))
+    result = presenter.present(t, solutions)
+    logger.info("Solution found:\n%s", result)
+    return result
 
 
-def solve_pacman(example_name: str, incremental: bool) -> None:
-    """Solve a Pacman instance."""
+def solve_pacman(example_name: str, incremental: bool = False) -> Optional[str]:
+    """Solve a Pacman instance and return the formatted result."""
 
-    print(f"Using example: {example_name}")
+    logger.info("Using example: %s", example_name)
 
     max_x, max_y, num_pellets, num_ghosts = get_pacman_data(example_name)
     t = template_pacman(max_x, max_y, num_pellets, num_ghosts)
 
-    print(
-        f"max_x: {max_x} max_y: {max_y} pellets: {num_pellets} ghosts: {num_ghosts}"
+    logger.info(
+        "max_x: %s max_y: %s pellets: %s ghosts: %s",
+        max_x,
+        max_y,
+        num_pellets,
+        num_ghosts,
     )
     input_f = f"predict_{example_name}.lp"
     _, solutions = do_solve("data/pacman", input_f, t, incremental=incremental)
 
     if not solutions:
-        print("No solution found.")
-        return
+        logger.warning("No solution found.")
+        return None
 
-    print(presenter.present(t, solutions))
+    result = presenter.present(t, solutions)
+    logger.info("Solution found:\n%s", result)
+    return result
 
 
-def solve_eca(input_name: str, incremental: bool) -> None:
+def solve_eca(input_name: str, incremental: bool = False) -> Optional[str]:
     """Solve an ECA instance with optional incremental solving."""
 
-    print(f"Using ECA input: {input_name}")
+    logger.info("Using ECA input: %s", input_name)
     t = template_eca(False)
     input_f = f"{input_name}.lp" if not input_name.endswith(".lp") else input_name
 
     _, solutions = do_solve("data/eca", input_f, t, incremental=incremental)
 
     if not solutions:
-        print("No solution found.")
-        return
+        logger.warning("No solution found.")
+        return None
 
-    print(presenter.present(t, solutions))
+    result = presenter.present(t, solutions)
+    logger.info("Solution found:\n%s", result)
+    return result
 
 
 
@@ -501,33 +515,33 @@ def solve_iteratively2(directory: str, input_file: str, templates: List[Tuple[st
                        continue_flag: bool, output_intermediaries: bool, 
                        best: Optional[ClingoResult]) -> None:
     if not templates and not continue_flag:
-        print(f"Unable to solve {input_file}")
+        logger.error("Unable to solve %s", input_file)
         return
     if not templates and continue_flag and best is None:
-        print(f"Unable to solve {input_file}")
+        logger.error("Unable to solve %s", input_file)
         return
     if not templates and continue_flag and best is not None:
-        print("Best answer:")
+        logger.info("Best answer:")
         tpl = best.result_template
-        print(presenter.present(tpl, ClingoOutput(answer=best.result_answer)))
-        print(presenter.present(tpl, ClingoOutput(optimization=best.result_optimization)))
+        logger.info(presenter.present(tpl, ClingoOutput(answer=best.result_answer)))
+        logger.info(presenter.present(tpl, ClingoOutput(optimization=best.result_optimization)))
         return
     label, tpl = templates[0]
-    print(label)
+    logger.info(label)
     results_file, outputs = do_solve(directory, input_file, tpl)
     if not outputs:
-        print("No solution found for this configuration")
-        print()
+        logger.info("No solution found for this configuration")
+        logger.info("")
         solve_iteratively2(directory, input_file, templates[1:], continue_flag, output_intermediaries, best)
         return
-    
-    last = parser.last_outputs(outputs)
+
+    last = parser.last_outputs([outputs]) if outputs else []
 
 
 
     if output_intermediaries or not continue_flag:
         for ans in last:
-            print(presenter.present(tpl, ans))
+            logger.info(presenter.present(tpl, ans))
     if not continue_flag:
         return
     new_best = update_best(tpl, best, last)
@@ -550,9 +564,9 @@ def less_optim(x: str, y: str) -> bool:
 
 
 def do_solve_old(directory: str, input_file: str, template: Template) -> Tuple[str, List[ClingoOutput]]:
-    print("Generating temporary files...")
+    logger.info("Generating temporary files...")
     name, cmd, result_path = do_template(False, template, directory, input_file)
-    print("Calling clingo...")
+    logger.info("Calling clingo...")
     try:
         subprocess.call(cmd, shell=True)
     except Exception:
@@ -608,7 +622,7 @@ def make_model_cb(
     """Return an *on_model* callback that stores *shown* symbols."""
 
     def cb(model: clingo.Model):
-        print(f"modelfound with cost {model.cost} at step {step}")
+        logger.info("modelfound with cost %s at step %s", model.cost, step)
         collector.append(model.symbols(shown=True))
         return None
 
@@ -761,13 +775,13 @@ def _minimal_core(ctl: clingo.Control, core_syms: list[Symbol]) -> list[Symbol]:
             if not result.satisfiable:
                 # core still unsatisfiable without `lit` ⇒ truly redundant
                 shrunk.remove(lit)
-                print(f"Removed {lit!s} from core; {len(shrunk)} remaining")
+                logger.info("Removed %s from core; %s remaining", lit, len(shrunk))
                 changed = True
                 # break so we restart scanning from the top
                 break
             else:
                 # removing `lit` made it satisfiable ⇒ keep it
-                print(f"Keeping   {lit!s} in core; still satisfiable without it")
+                logger.info("Keeping %s in core; still satisfiable without it", lit)
         # end for
     # end while
 
@@ -788,11 +802,11 @@ def _minimal_assumtions(ctl: clingo.Control, assumtions: list[Symbol]) -> list[S
         # remove all assumptions with this rule_id
         test_assumptions = [a for a in shrunk if rule_ids.get(a) != rule_id]
 
-        print(f"Testing assumptions without rule_id {rule_id} ({len(test_assumptions)} remaining)")
+        logger.info("Testing assumptions without rule_id %s (%s remaining)", rule_id, len(test_assumptions))
 
         def on_model(m: clingo.Model) -> bool:
             """Callback to handle models found during solving."""
-            print(f"Model found with rule_id {rule_id}")
+            logger.info("Model found with rule_id %s", rule_id)
             return False
 
         # solve under these assumptions
@@ -801,10 +815,10 @@ def _minimal_assumtions(ctl: clingo.Control, assumtions: list[Symbol]) -> list[S
         if result.satisfiable:
             # remove rules with this rule_id from the assumptions
             shrunk = test_assumptions
-            print(f"Removed all assumptions with rule_id {rule_id}")
+            logger.info("Removed all assumptions with rule_id %s", rule_id)
             break
         else:
-            print(f"Keeping assumptions with rule_id {rule_id}; still unsatisfiable without them")
+            logger.info("Keeping assumptions with rule_id %s; still unsatisfiable without them", rule_id)
 
     return shrunk
 
@@ -816,7 +830,7 @@ def do_solve(
     delete_temp: bool = False,
     max_steps: int = 14,
     incremental: bool = False
-) -> Tuple[str, List[ClingoOutput]]:
+) -> Tuple[str, Optional[ClingoOutput]]:
     """
     Run a Clingo solve (static or incremental), collect models, record times per step,
     write results incrementally, and plot a timing graph.
@@ -859,14 +873,14 @@ def do_solve(
     # Plot timing graph
     graph_path = Path("temp") / f"{tmp_dir}_{name}_timing.png"
     _make_graph(step_times, graph_path)
-    print(f"Timing graph saved to {graph_path}")
+    logger.info("Timing graph saved to %s", graph_path)
 
     # Optional cleanup
     if delete_temp:
         subprocess.call(f"rm temp/{tmp_dir}_*", shell=True)
 
     # Parse outputs
-    parsed = []
+    parsed: Optional[ClingoOutput] = None
     if last_model:
         parsed = parser.parse_lines([model_to_string(last_model)])[0]
 
@@ -887,7 +901,7 @@ def _run_incremental(
 ):
     models, hints = [], []
     max_ts = get_num_time_steps(f"{work_dir}/{input_file}")
-    print(f"Incremental up to {max_ts} steps")
+    logger.info("Incremental up to %s steps", max_ts)
 
     for step in range(1, max_ts + 1):
         ctl.ground([("step", [Number(step)])])
@@ -902,7 +916,7 @@ def _run_incremental(
         ctl.configuration.solve.heuristic = "None"
         assumptions, lit_map = _make_assumptions(ctl, hints) if hints else ([], {})
         core: list[int] = []
-        print(f"Step {step:02d} with {len(assumptions)} assumptions")
+        logger.info("Step %02d with %d assumptions", step, len(assumptions))
         result = ctl.solve(
             assumptions=[(lit_map[a],v) for a, v in assumptions],
             on_model=make_model_cb(models, step, template, parser, presenter, name),
@@ -914,14 +928,14 @@ def _run_incremental(
 
         if not hard and core:
             
-            print(f"Found core symbols at step {step}: {len(core)}")
+            logger.info("Found core symbols at step %s: %s", step, len(core))
             # core_syms = [lit_map[l] for l in core if l in lit_map]
             # min_core = _minimal_core(ctl, core_syms)
             # print(f"Minimal core symbols: {len(min_core)}")
 
             # assumptions = [assumption for assumption in assumptions if lit_map[assumption[0]] not in min_core]
             assumptions = _minimal_assumtions(ctl, [(lit_map[a], v) for a, v in assumptions])
-            print(f"Remaining assumptions: {len(assumptions)}")
+            logger.info("Remaining assumptions: %s", len(assumptions))
             core.clear()
             models.clear()
             result = ctl.solve(
@@ -939,7 +953,7 @@ def _run_incremental(
             models.clear()
             _activate_hints(ctl, hints, step)
             ctl.configuration.solve.heuristic = "Vsids-Domain"
-            print("No model found with hard guidance, using soft heuristics.")
+            logger.info("No model found with hard guidance, using soft heuristics.")
             ctl.solve(on_model=make_model_cb(models, step, template, parser, presenter, name))
 
         # Record time and result
@@ -947,7 +961,7 @@ def _run_incremental(
         step_times.append((step, duration))
 
         if not models:
-            print(f"No model at step {step}, stopping.")
+            logger.info("No model at step %s, stopping.", step)
             break
 
         model = models[-1]
@@ -964,7 +978,7 @@ def _run_incremental(
             file.writelines(pretty(model, template, parser, presenter))
             file.write("\n\n")
 
-        print(f"Step {step:02d}: {duration:.2f}s, written to results.")
+        logger.info("Step %02d: %.2fs, written to results.", step, duration)
 
     return models, (models[-1] if models else None)
 
@@ -988,7 +1002,7 @@ def _run_static(
     step_times.append((max_steps, duration))
 
     if not models:
-        print("No model found.")
+        logger.info("No model found.")
         return [], None
 
     model = models[-1]
@@ -996,7 +1010,7 @@ def _run_static(
     with pretty_path.open("a") as file:
         file.write(pretty(model, template, parser, presenter))
 
-    print(f"Static solve: {duration:.2f}s for {max_steps} steps.")
+    logger.info("Static solve: %.2fs for %s steps.", duration, max_steps)
     return models, model
 
 def do_template_old(add_const: bool, t: Template, dir: str, input_f: str) -> Tuple[str, str, str]:
@@ -1059,25 +1073,38 @@ def gen_bash(dir: str, input_f: str, add_const: bool, t: Template) -> Tuple[str,
     )
     with open(fpath, "a") as fh:
         fh.write(s)
-    print(f"Generated {fpath}")
+    logger.info("Generated %s", fpath)
     os.chmod(fpath, 0o777)
     return fpath, results_f
 
 
-def main() -> None:
-    args = sys.argv[1:]
-    print("Solving " + " ".join(args))
-    if len(args) >= 2 and args[0] == "sokoban":
-        inc = args[2].lower() == "true" if len(args) > 2 else False
-        solve_sokoban(args[1], inc)
-    elif len(args) >= 2 and args[0] == "pacman":
-        inc = args[2].lower() == "true" if len(args) > 2 else False
-        solve_pacman(args[1], inc)
-    elif len(args) >= 2 and args[0] == "eca":
-        inc = args[2].lower() == "true" if len(args) > 2 else False
-        solve_eca(args[1], inc)
-    else:
-        print("Usage: solve.py sokoban|pacman|eca <input_name> [True|False]")
+def main(argv: Optional[List[str]] = None) -> None:
+    """Entry point for the command line interface."""
+
+    parser = argparse.ArgumentParser(description="Solve problems using Clingo")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    sok_cmd = sub.add_parser("sokoban", help="Solve a Sokoban instance")
+    sok_cmd.add_argument("example")
+    sok_cmd.add_argument("--incremental", action="store_true")
+
+    pac_cmd = sub.add_parser("pacman", help="Solve a Pacman instance")
+    pac_cmd.add_argument("example")
+    pac_cmd.add_argument("--incremental", action="store_true")
+
+    eca_cmd = sub.add_parser("eca", help="Solve an ECA instance")
+    eca_cmd.add_argument("input")
+    eca_cmd.add_argument("--incremental", action="store_true")
+
+    args = parser.parse_args(argv)
+    logging.basicConfig(level=logging.INFO)
+
+    if args.command == "sokoban":
+        solve_sokoban(args.example, args.incremental)
+    elif args.command == "pacman":
+        solve_pacman(args.example, args.incremental)
+    elif args.command == "eca":
+        solve_eca(args.input, args.incremental)
 
 if __name__ == "__main__":
     main()
