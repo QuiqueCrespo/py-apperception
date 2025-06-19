@@ -732,28 +732,82 @@ def _collect_asp_files(tmp_dir, name, t_desc):
     return files
 
 def _setup_control(files):
-    ctl = clingo.Control(["--parallel-mode=4", "--opt-strategy=usc", "--opt-usc-shrink=min"])
+    ctl = clingo.Control(["--parallel-mode=4"])
 
     for f in files:
         ctl.load(f)
     return ctl
 
-def _minimal_core(
-    ctl: clingo.Control, core_syms: list[Symbol]
-) -> list[Symbol]:
+def _minimal_core(ctl: clingo.Control, core_syms: list[Symbol]) -> list[Symbol]:
+    """
+    Given an initial unsatisfiable core `core_syms`, repeatedly try to remove
+    each literal and check if the remaining set is still unsatisfiable.
+    Stop once no further literals can be dropped.
+    """
     shrunk = core_syms.copy()
-    for lit in core_syms:
-        # try without lit
-        test = [(l, True) for l in shrunk if l != lit]
-        result = ctl.solve(assumptions=test)
-        ctl.cleanup()
-        if not result.satisfiable:
-            shrunk.remove(lit)
-            print(f"Removed {lit} from core, remaining: {len(shrunk)}")
-        del result
-        gc.collect()
+    changed = True
+
+    while changed:
+        changed = False
+        # iterate over a snapshot, since we may remove from `shrunk`
+        for lit in shrunk.copy():
+            # build assumptions: assert all but `lit`
+            test_assumptions = [(l, True) for l in shrunk if l is not lit]
+
+            # solve under these assumptions
+            result = ctl.solve(assumptions=test_assumptions)
+            ctl.cleanup()   # clear solver state
+
+            if not result.satisfiable:
+                # core still unsatisfiable without `lit` ⇒ truly redundant
+                shrunk.remove(lit)
+                print(f"Removed {lit!s} from core; {len(shrunk)} remaining")
+                changed = True
+                # break so we restart scanning from the top
+                break
+            else:
+                # removing `lit` made it satisfiable ⇒ keep it
+                print(f"Keeping   {lit!s} in core; still satisfiable without it")
+        # end for
+    # end while
 
     return shrunk
+
+def _minimal_assumtions(ctl: clingo.Control, assumtions: list[Symbol]) -> list[Symbol]:
+    """
+    Given an initial unsatisfiable core `core_syms`, repeatedly try to remove
+    each literal and check if the remaining set is still unsatisfiable.
+    Stop once no further literals can be dropped.
+    """
+    shrunk = assumtions.copy()
+    rule_ids = {a: _get_rule_id(a[0]) for a in shrunk if _get_rule_id(a[0]) is not None}
+    changed = True
+
+    for rule_id in set(rule_ids.values()):
+        
+        # remove all assumptions with this rule_id
+        test_assumptions = [a for a in shrunk if rule_ids.get(a) != rule_id]
+
+        print(f"Testing assumptions without rule_id {rule_id} ({len(test_assumptions)} remaining)")
+
+        def on_model(m: clingo.Model) -> bool:
+            """Callback to handle models found during solving."""
+            print(f"Model found with rule_id {rule_id}")
+            return False
+
+        # solve under these assumptions
+        result = ctl.solve(assumptions=test_assumptions, on_model=on_model)
+        ctl.cleanup()
+        if result.satisfiable:
+            # remove rules with this rule_id from the assumptions
+            shrunk = test_assumptions
+            print(f"Removed all assumptions with rule_id {rule_id}")
+            break
+        else:
+            print(f"Keeping assumptions with rule_id {rule_id}; still unsatisfiable without them")
+
+    return shrunk
+
 
 def do_solve(
     work_dir: str,
@@ -782,10 +836,6 @@ def do_solve(
     ctl = _setup_control(files)
     ctl.ground([("base", [])])
 
-    print("Solve check")
-    ctl.solve(
-        on_model=lambda m: print(f"Model found: {model_to_string(m.symbols(shown=True))}")
-    )
 
     # Record step times
     step_times: List[Tuple[int, float]] = []
@@ -858,7 +908,6 @@ def _run_incremental(
             on_model=make_model_cb(models, step, template, parser, presenter, name),
             on_core=lambda c: core.extend(c)
         )
-        print(core)
         hard = result.satisfiable
         del result
         gc.collect()
@@ -866,16 +915,17 @@ def _run_incremental(
         if not hard and core:
             
             print(f"Found core symbols at step {step}: {len(core)}")
-            core_syms = [lit_map[l] for l in core if l in lit_map]
-            min_core = _minimal_core(ctl, core_syms)
-            print(f"Minimal core symbols: {len(min_core)}")
+            # core_syms = [lit_map[l] for l in core if l in lit_map]
+            # min_core = _minimal_core(ctl, core_syms)
+            # print(f"Minimal core symbols: {len(min_core)}")
 
-            assumptions = [assumption for assumption in assumptions if lit_map[assumption[0]] not in min_core]
+            # assumptions = [assumption for assumption in assumptions if lit_map[assumption[0]] not in min_core]
+            assumptions = _minimal_assumtions(ctl, [(lit_map[a], v) for a, v in assumptions])
             print(f"Remaining assumptions: {len(assumptions)}")
             core.clear()
             models.clear()
             result = ctl.solve(
-                assumptions=[(lit_map[a], v) for a, v in assumptions],
+                assumptions=assumptions,
                 on_model=make_model_cb(models, step, template, parser, presenter, name),
                 on_core=lambda c: core.extend(c)
             )
@@ -905,6 +955,7 @@ def _run_incremental(
         if step % 5 == 0:
             _wipe_all_hints(ctl)
         ctl.cleanup()
+    
 
 
 
