@@ -193,15 +193,15 @@ def solve_eca(input_name: str, incremental: bool = False) -> Optional[str]:
 # ECA-specific iteration
 # -------------------------------------------------------------------------------
 
-def solve_eca_iteratively(input_f):
-    """
-    Solves ECA problems iteratively using a specific set of templates.
+# def solve_eca_iteratively(input_f):
+#     """
+#     Solves ECA problems iteratively using a specific set of templates.
 
-    Args:
-        input_f (str): The input file prefix.
-    """
-    # Haskell: solve_iteratively "data/eca" input_f (all_eca_templates input_f) False False
-    solve_iteratively("data/eca", input_f, all_eca_templates(input_f), False, False)
+#     Args:
+#         input_f (str): The input file prefix.
+#     """
+#     # Haskell: solve_iteratively "data/eca" input_f (all_eca_templates input_f) False False
+#     solve_iteratively("data/eca", input_f, all_eca_templates(input_f), False, False)
 
 def all_eca_templates(input_f):
     """
@@ -281,76 +281,61 @@ def all_eca_templates(input_f):
 
 # ---------------------------- Iterative solving ----------------------------
 
-def solve_iteratively(directory: str, input_file: str, templates: List[Tuple[str, Template]], continue_flag: bool, output_intermediaries: bool) -> None:
-    solve_iteratively2(directory, input_file, templates, continue_flag, output_intermediaries, None)
+# def solve_iteratively(directory: str, input_file: str, templates: List[Tuple[str, Template]], continue_flag: bool, output_intermediaries: bool) -> None:
+#     solve_iteratively2(directory, input_file, templates, continue_flag, output_intermediaries, None)
 
 
-def solve_iteratively2(directory: str, input_file: str, templates: List[Tuple[str, Template]], 
-                       continue_flag: bool, output_intermediaries: bool, 
-                       best: Optional[ClingoResult]) -> None:
-    if not templates and not continue_flag:
-        logger.error("Unable to solve %s", input_file)
-        return
-    if not templates and continue_flag and best is None:
-        logger.error("Unable to solve %s", input_file)
-        return
-    if not templates and continue_flag and best is not None:
-        logger.info("Best answer:")
-        tpl = best.result_template
-        logger.info(presenter.present(tpl, ClingoOutput(answer=best.result_answer)))
-        logger.info(presenter.present(tpl, ClingoOutput(optimization=best.result_optimization)))
-        return
-    label, tpl = templates[0]
-    logger.info(label)
-    results_file, outputs = do_solve(directory, input_file, tpl)
-    if not outputs:
-        logger.info("No solution found for this configuration")
-        logger.info("")
-        solve_iteratively2(directory, input_file, templates[1:], continue_flag, output_intermediaries, best)
-        return
+# def solve_iteratively2(directory: str, input_file: str, templates: List[Tuple[str, Template]], 
+#                        continue_flag: bool, output_intermediaries: bool, 
+#                        best: Optional[ClingoResult]) -> None:
+#     if not templates and not continue_flag:
+#         logger.error("Unable to solve %s", input_file)
+#         return
+#     if not templates and continue_flag and best is None:
+#         logger.error("Unable to solve %s", input_file)
+#         return
+#     if not templates and continue_flag and best is not None:
+#         logger.info("Best answer:")
+#         tpl = best.result_template
+#         logger.info(presenter.present(tpl, ClingoOutput(answer=best.result_answer)))
+#         logger.info(presenter.present(tpl, ClingoOutput(optimization=best.result_optimization)))
+#         return
+#     label, tpl = templates[0]
+#     logger.info(label)
+#     results_file, outputs = do_solve(directory, input_file, tpl)
+#     if not outputs:
+#         logger.info("No solution found for this configuration")
+#         logger.info("")
+#         solve_iteratively2(directory, input_file, templates[1:], continue_flag, output_intermediaries, best)
+#         return
 
-    last = parser.last_outputs([outputs]) if outputs else []
-
-
-
-    if output_intermediaries or not continue_flag:
-        for ans in last:
-            logger.info(presenter.present(tpl, ans))
-    if not continue_flag:
-        return
-    new_best = update_best(tpl, best, last)
-    solve_iteratively2(directory, input_file, templates[1:], continue_flag, output_intermediaries, new_best)
+#     last = parser.last_outputs([outputs]) if outputs else []
 
 
-def update_best(template: Template, current: Optional[ClingoResult], outputs: List[ClingoOutput]) -> Optional[ClingoResult]:
-    if current is None and len(outputs) >= 2:
-        return ClingoResult(answer=outputs[0].answer, optimization=outputs[1].optimization, template=template)
-    if current is not None and len(outputs) >= 2:
-        if less_optim(outputs[1].optimization, current.result_optimization):
-            return ClingoResult(answer=outputs[0].answer, optimization=outputs[1].optimization, template=template)
-    return current
+
+#     if output_intermediaries or not continue_flag:
+#         for ans in last:
+#             logger.info(presenter.present(tpl, ans))
+#     if not continue_flag:
+#         return
+#     new_best = update_best(tpl, best, last)
+#     solve_iteratively2(directory, input_file, templates[1:], continue_flag, output_intermediaries, new_best)
 
 
-def less_optim(x: str, y: str) -> bool:
-    xs = list(map(int, x.split()))
-    ys = list(map(int, y.split()))
-    return xs < ys
+# def update_best(template: Template, current: Optional[ClingoResult], outputs: List[ClingoOutput]) -> Optional[ClingoResult]:
+#     if current is None and len(outputs) >= 2:
+#         return ClingoResult(answer=outputs[0].answer, optimization=outputs[1].optimization, template=template)
+#     if current is not None and len(outputs) >= 2:
+#         if less_optim(outputs[1].optimization, current.result_optimization):
+#             return ClingoResult(answer=outputs[0].answer, optimization=outputs[1].optimization, template=template)
+#     return current
 
 
-def do_solve_old(directory: str, input_file: str, template: Template) -> Tuple[str, List[ClingoOutput]]:
-    logger.info("Generating temporary files...")
-    name, cmd, result_path = do_template(False, template, directory, input_file)
-    logger.info("Calling clingo...")
-    try:
-        subprocess.call(cmd, shell=True)
-    except Exception:
-        pass
-    with open(result_path) as f:
-        lines = f.read().splitlines()
-    outputs = parser.parse_lines(lines)
-    if flag_delete_temp:
-        subprocess.call(f"rm temp/{name}_*", shell=True)
-    return result_path, outputs
+# def less_optim(x: str, y: str) -> bool:
+#     xs = list(map(int, x.split()))
+#     ys = list(map(int, y.split()))
+#     return xs < ys
+
 
 def get_num_time_steps(input_file: str) -> int:
     # use regex to extract the nuber from lines like: senses(*, 1). where 1 is the time step. find all the instances of this pattern as get the biggest value
@@ -388,10 +373,7 @@ def model_to_string(model: Sequence[clingo.Symbol]) -> str:
 def make_model_cb(
     collector: list[List[Symbol]],
     step: int,
-    template=None,
-    parser=None,
-    presenter=None,
-    name: Optional[str] = None
+
 ):
     """Return an *on_model* callback that stores *shown* symbols."""
 
@@ -526,45 +508,10 @@ def _setup_control(files):
         ctl.load(f)
     return ctl
 
-def _minimal_core(ctl: clingo.Control, core_syms: list[Symbol]) -> list[Symbol]:
+
+def _minimal_assumptions(ctl: clingo.Control, assumptions: list[Symbol], rule_groups, step, models) -> list[Symbol]:
     """
-    Given an initial unsatisfiable core `core_syms`, repeatedly try to remove
-    each literal and check if the remaining set is still unsatisfiable.
-    Stop once no further literals can be dropped.
-    """
-    shrunk = core_syms.copy()
-    changed = True
-
-    while changed:
-        changed = False
-        # iterate over a snapshot, since we may remove from `shrunk`
-        for lit in shrunk.copy():
-            # build assumptions: assert all but `lit`
-            test_assumptions = [(l, True) for l in shrunk if l is not lit]
-
-            # solve under these assumptions
-            result = ctl.solve(assumptions=test_assumptions)
-            ctl.cleanup()   # clear solver state
-            gc.collect()
-
-            if not result.satisfiable:
-                # core still unsatisfiable without `lit` ⇒ truly redundant
-                shrunk.remove(lit)
-                logger.info("Removed %s from core; %s remaining", lit, len(shrunk))
-                changed = True
-                # break so we restart scanning from the top
-                break
-            else:
-                # removing `lit` made it satisfiable ⇒ keep it
-                logger.info("Keeping %s in core; still satisfiable without it", lit)
-        # end for
-    # end while
-
-    return shrunk
-
-def _minimal_assumtions(ctl: clingo.Control, assumtions: list[Symbol], rule_groups) -> list[Symbol]:
-    """
-    Given an initial unsatisfiable core ``assumtions`` iterate over the rule
+    Given an initial unsatisfiable core ``assumptions`` iterate over the rule
     groups encoded in them, dropping all literals of one group at a time and
     checking satisfiability.  When removing a group yields a model, return that
     model together with the updated assumption list instead of starting a new
@@ -574,24 +521,14 @@ def _minimal_assumtions(ctl: clingo.Control, assumtions: list[Symbol], rule_grou
 
     for rule_group in sorted(rule_groups, key=len):        
 
-        test_assumptions = [assumtion for assumtion in assumtions if _get_rule_id(assumtion[0]) not in rule_group]
+        test_assumptions = [assumption for assumption in assumptions if _get_rule_id(assumption[0]) not in rule_group]
 
         logger.info("Testing assumptions without rule_ids %s (%s remaining)", rule_group , len(test_assumptions))
-
-        collected: list[list[Symbol]] = []
-
-        def on_model(m: clingo.Model) -> None:
-            """Callback to handle models found during solving."""
-            logger.info("Model found with cost %s", m.cost)
-            return False
-
         # solve under these assumptions
-        result = ctl.solve(assumptions=test_assumptions, on_model=on_model)
+        ctl.solve(assumptions=test_assumptions, on_model=make_model_cb(models, step))
         ctl.cleanup()
         gc.collect()  # clear solver state
-        if result.satisfiable:
-            logger.info("Assumptions %s are satisfiable, removing rule group %s", len(test_assumptions), rule_group)
-            return test_assumptions
+
 
 def rule_groups(atoms: Iterable[Symbol]) -> list[Symbol]:
     # filter rule groups from the results
@@ -682,10 +619,8 @@ def do_solve(
 def _run_incremental(
     ctl,
     template,
-    name: str,
     work_dir: str,
     input_file: str,
-    result_path: Path,
     pretty_path: Path,
     step_times: List[Tuple[int, float]]
 ):
@@ -705,41 +640,26 @@ def _run_incremental(
         # Hard guidance
         ctl.configuration.solve.heuristic = "None"
         assumptions, lit_map = _make_assumptions(ctl, hints) if hints else ([], {})
-        core: list[int] = []
         logger.info("Step %02d with %d assumptions", step, len(assumptions))
         result = ctl.solve(
             assumptions=[(lit_map[a],v) for a, v in assumptions],
-            on_model=make_model_cb(models, step, template, parser, presenter, name),
-            on_core=lambda c: core.extend(c)
+            on_model=make_model_cb(models, step),
         )
         
         is_sat = result.satisfiable
-        
+        del result
+        gc.collect()
 
-        if not is_sat and core:
+        if not is_sat:
 
             rule_groups_list = rule_groups(model) if model else []
 
-            del result
-            gc.collect()
-            
-            logger.info("Found core symbols at step %s: %s", step, len(core))
-            core_syms = [lit_map[l] for l in core if l in lit_map]
-            # min_core = _minimal_core(ctl, core_syms)
-            # print(f"Minimal core symbols: {len(min_core)}")
 
-            # assumptions = [(lit_map[assumption[0]],True) for assumption in assumptions if lit_map[assumption[0]] not in core_syms]
-            assumptions = _minimal_assumtions(ctl, [(lit_map[a], v) for a, v in assumptions], rule_groups_list)
+        
+            _minimal_assumptions(ctl, [(lit_map[a], v) for a, v in assumptions], rule_groups_list, step, models)
             logger.info("Remaining assumptions: %s", len(assumptions))
-            core.clear()
-            models.clear()
-            result = ctl.solve(
-                assumptions=assumptions,
-                on_model=make_model_cb(models, step, template, parser, presenter, name),
-                on_core=lambda c: core.extend(c)
-            )
+           
             is_sat = result.satisfiable
-            del result
  
         # Fallback to soft
         if not is_sat:
@@ -748,8 +668,8 @@ def _run_incremental(
             _activate_hints(ctl, hints, step)
             ctl.configuration.solve.heuristic = "Vsids-Domain"
             logger.info("No model found with hard guidance, using soft heuristics.")
-            ctl.solve(on_model=make_model_cb(models, step, template, parser, presenter, name))
-        
+            ctl.solve(on_model=make_model_cb(models, step))
+
         gc.collect()
 
         # Record time and result
@@ -809,16 +729,6 @@ def _run_static(
     logger.info("Static solve: %.2fs for %s steps.", duration, max_steps)
     return models, model
 
-def do_template_old(add_const: bool, t: Template, dir: str, input_f: str) -> Tuple[str, str, str]:
-    d = dir[len("data/") :]
-    input_name = input_f[:-len(".lp")]
-    name = f"{d}_{input_name}"
-    t.gen_inits(name)
-    t.gen_subs(name)
-    t.gen_var_atoms(name)
-    t.gen_interpretation(name)
-    script, results = gen_bash(d, input_name, add_const, t)
-    return name, script, results
 
 def do_template(add_const: bool, t: Template, dir: str, input_f: str) -> Tuple[str, str, bool, Template]:
     """Generate auxiliary files for *t* and return metadata."""
