@@ -1,4 +1,3 @@
-"""Command-line and API access for solving puzzle instances with Clingo."""
 
 import sys
 import subprocess
@@ -218,9 +217,9 @@ def all_eca_templates(input_f):
     # Haskell: map (make_eca_template False input_f) [0..8]
     return [make_eca_template(False, input_f, i) for i in range(9)] # 0 to 8 inclusive
 
-# -------------------------------------------------------------------------------
-# ECA iteration using the general code for template iteration
-# -------------------------------------------------------------------------------
+# # -------------------------------------------------------------------------------
+# # ECA iteration using the general code for template iteration
+# # -------------------------------------------------------------------------------
 
 # def solve_eca_general(input_f):
 #     """
@@ -278,232 +277,7 @@ def all_eca_templates(input_f):
 #         continue
 
 
-# ----------------------- Template-iteration utilities -----------------------
 
-ConceptSpec = Tuple[Concept, List[T]]
-ObjectSpec = Tuple[Object, T]
-VarSpec = Tuple[Var, T]
-
-@dataclass(frozen=True)
-class IP_ObjectSpecs:
-    specs: List[ObjectSpec]
-
-@dataclass(frozen=True)
-class IP_PermConcept:
-    specs: List[ConceptSpec]
-
-@dataclass(frozen=True)
-class IP_FluentConcept:
-    specs: List[ConceptSpec]
-
-@dataclass(frozen=True)
-class IP_VarSpecs:
-    specs: List[VarSpec]
-
-@dataclass(frozen=True)
-class IP_NumArrowRules:
-    count: int
-
-@dataclass(frozen=True)
-class IP_NumCausesRules:
-    count: int
-
-@dataclass(frozen=True)
-class IP_NumBodyAtoms:
-    count: int
-
-TemplateParameter = Union[IP_ObjectSpecs, IP_PermConcept, IP_FluentConcept,
-                          IP_VarSpecs, IP_NumArrowRules, IP_NumCausesRules,
-                          IP_NumBodyAtoms]
-
-@dataclass
-class TemplateDelta:
-    extra_types: List[T]
-    extra_objects: List[ObjectSpec]
-    extra_perm_concepts: List[ConceptSpec]
-    extra_fluent_concepts: List[ConceptSpec]
-    extra_vars: List[VarSpec]
-    extra_num_arrow_rules: int
-    extra_num_causes_rules: int
-    extra_num_body_atoms: int
-
-IntTypesPair = Tuple[int, List[T]]
-const_num_templates_per_type = 100
-
-
-def get_first_n_int_pairs(n: int) -> List[Tuple[int, int]]:
-    """
-    Generate the first n "units" of (count, types) pairs as in Haskell implementation.
-    """
-    result = []
-    total = 0
-    for i, y in zip(count(1), count(0)):
-        block = const_num_templates_per_type * i
-        if total + block >= n:
-            diff = n - total
-            if diff > 0:
-                result.append((diff, y))
-            break
-        result.append((block, y))
-        total += block
-    return result
-
-
-def get_first_n_int_types_pairs(n: int) -> List[IntTypesPair]:
-    return [(num, [T(f"gen_{i}") for i in range(1, cnt+1)]) 
-            for num, cnt in get_first_n_int_pairs(n)]
-
-
-def choices(lists: List[List[TemplateParameter]]) -> Iterator[List[TemplateParameter]]:
-    """Cartesian product over lists of TemplateParameter, similar to Data.Universe.Helpers.choices"""
-    return product(*lists)
-
-
-def parameter_lists(types: List[T], n: int) -> List[TemplateDelta]:
-    deltas: List[TemplateDelta] = []
-    for count, new_types in get_first_n_int_types_pairs(n):
-        deltas.extend(parameter_lists2(types + new_types, new_types, count))
-    return deltas
-
-
-def parameter_lists2(all_types: List[T], new_types: List[T], n: int) -> List[TemplateDelta]:
-    return list(all_parameter_lists(all_types, new_types))[:n]
-
-
-def all_parameter_lists(all_ts: List[T], new_ts: List[T]) -> Iterator[TemplateDelta]:
-    num_body_atoms = [IP_NumBodyAtoms(i) for i in count(0)]
-    fluents = [IP_FluentConcept(cs) for cs in all_concepts(all_ts)]
-    object_specs = [IP_ObjectSpecs(objs) for objs in all_object_specs(all_ts)]
-    perms = [IP_PermConcept(cs) for cs in all_concepts(all_ts)]
-    num_arrows = [IP_NumArrowRules(i) for i in count(0)]
-    num_causes = [IP_NumCausesRules(i) for i in count(0)]
-    vars_ = [IP_VarSpecs(vs) for vs in all_var_specs(all_ts)]
-    for combo in choices([num_body_atoms, fluents, object_specs, perms,
-                          num_arrows, num_causes, vars_]):
-        yield convert_to_td(new_ts, list(combo))
-
-
-def convert_to_td(new_ts: List[T], params: List[TemplateParameter]) -> TemplateDelta:
-    # Unpack parameters by type
-    n_body = next(p.count for p in params if isinstance(p, IP_NumBodyAtoms))
-    fluent = next(p.specs for p in params if isinstance(p, IP_FluentConcept))
-    objs = next(p.specs for p in params if isinstance(p, IP_ObjectSpecs))
-    perm = next(p.specs for p in params if isinstance(p, IP_PermConcept))
-    n_arw = next(p.count for p in params if isinstance(p, IP_NumArrowRules))
-    n_cau = next(p.count for p in params if isinstance(p, IP_NumCausesRules))
-    vars_ = next(p.specs for p in params if isinstance(p, IP_VarSpecs))
-    return TemplateDelta(
-        extra_types=new_ts,
-        extra_objects=objs,
-        extra_perm_concepts=perm,
-        extra_fluent_concepts=fluent,
-        extra_vars=vars_,
-        extra_num_arrow_rules=n_arw,
-        extra_num_causes_rules=n_cau,
-        extra_num_body_atoms=n_body
-    )
-
-
-def augment_template(template: Template, td: TemplateDelta) -> Template:
-    # Create a copy and augment
-    frame = template.frame.copy()
-    frame.types += td.extra_types
-    frame.objects += td.extra_objects
-    frame.permanent_concepts += [(c, 'Constructed', ts) for c, ts in td.extra_perm_concepts]
-    frame.fluid_concepts += td.extra_fluent_concepts
-    frame.vars += td.extra_vars
-    if td.extra_vars:
-        frame.var_groups.append(frame.var_groups[-1] + [v for v, _ in td.extra_vars])
-
-    return Template(
-        frame=frame,
-        num_arrow_rules=template.num_arrow_rules + td.extra_num_arrow_rules,
-        num_causes_rules=template.num_causes_rules + td.extra_num_causes_rules,
-        max_body_atoms=template.max_body_atoms + td.extra_num_body_atoms,
-        **{k: getattr(template, k) for k in template.__dict__ 
-           if k not in ('frame', 'num_arrow_rules', 'num_causes_rules', 'max_body_atoms')}
-    )
-
-
-def show_parameters(td: TemplateDelta) -> str:
-    parts: List[str] = []
-    parts += (["No extra types"] if not td.extra_types else ["Extra types:"] + [str(t) for t in td.extra_types])
-    parts += (["No extra objects"] if not td.extra_objects else ["Extra objects:"] + [str(o) for o in td.extra_objects])
-    parts += (["No extra permanent concepts"] if not td.extra_perm_concepts else ["Extra permanent concepts:"] + [str(c) for c in td.extra_perm_concepts])
-    parts += (["No extra fluent concepts"] if not td.extra_fluent_concepts else ["Extra fluent concepts:"] + [str(f) for f in td.extra_fluent_concepts])
-    parts += (["No extra vars"] if not td.extra_vars else ["Extra vars:"] + [str(v) for v in td.extra_vars])
-    parts.append(f"Num extra arrow rules: {td.extra_num_arrow_rules}")
-    parts.append(f"Num extra causes rules: {td.extra_num_causes_rules}")
-    parts.append(f"Num extra body atoms: {td.extra_num_body_atoms}")
-    return "\n".join(parts)
-
-
-def all_concepts(types: List[T]) -> Iterator[List[ConceptSpec]]:
-    length = 0
-    while True:
-        for combo in all_concepts_of_length(types, length):
-            yield combo
-        length += 1
-
-
-def all_concepts_of_length(types: List[T], n: int) -> List[List[ConceptSpec]]:
-    if n == 0:
-        return [[]]
-    combos: List[List[ConceptSpec]] = []
-    for prev in all_concepts_of_length(types, n-1):
-        for spec in all_concepts_with_index(types, n):
-            combos.append(prev + [spec])
-    return combos
-
-
-def all_concepts_with_index(types: List[T], i: int) -> List[ConceptSpec]:
-    unaries = [(Concept(f"gen_{i}"), [t]) for t in types]
-    binaries = [(Concept(f"gen_{i}"), [t1, t2]) for t1 in types for t2 in types]
-    return unaries + binaries
-
-
-def all_object_specs(types: List[T]) -> Iterator[List[ObjectSpec]]:
-    length = 0
-    while True:
-        for combo in all_object_specs_of_length(types, length):
-            yield combo
-        length += 1
-
-
-def all_object_specs_of_length(types: List[T], n: int) -> List[List[ObjectSpec]]:
-    if n == 0:
-        return [[]]
-    combos: List[List[ObjectSpec]] = []
-    for prev in all_object_specs_of_length(types, n-1):
-        for spec in all_object_specs_with_index(types, n):
-            combos.append(prev + [spec])
-    return combos
-
-
-def all_object_specs_with_index(types: List[T], i: int) -> List[ObjectSpec]:
-    return [(Object(f"gen_{i}"), t) for t in types]
-
-
-def all_var_specs(types: List[T]) -> Iterator[List[VarSpec]]:
-    length = 0
-    while True:
-        for combo in all_var_specs_of_length(types, length):
-            yield combo
-        length += 1
-
-
-def all_var_specs_of_length(types: List[T], n: int) -> List[List[VarSpec]]:
-    if n == 0:
-        return [[]]
-    combos: List[List[VarSpec]] = []
-    for prev in all_var_specs_of_length(types, n-1):
-        for spec in all_var_specs_with_index(types, n):
-            combos.append(prev + [spec])
-    return combos
-
-
-def all_var_specs_with_index(types: List[T], i: int) -> List[VarSpec]:
-    return [(Var(f"gen_{i}"), t) for t in types]
 
 # ---------------------------- Iterative solving ----------------------------
 
@@ -622,7 +396,7 @@ def make_model_cb(
     """Return an *on_model* callback that stores *shown* symbols."""
 
     def cb(model: clingo.Model):
-        logger.info("modelfound with cost %s at step %s", model.cost, step)
+        logger.info("Model found with cost %s at step %s", model.cost, step)
         collector.append(model.symbols(shown=True))
         return None
 
@@ -651,7 +425,7 @@ def _get_rule_id(atom: Symbol) -> Symbol | None:
         "rule_arrow_head",
         "rule_body",
     } and atom.arguments:
-        return atom.arguments[0]
+        return atom.arguments[0].name
     return None
 
 
@@ -771,6 +545,7 @@ def _minimal_core(ctl: clingo.Control, core_syms: list[Symbol]) -> list[Symbol]:
             # solve under these assumptions
             result = ctl.solve(assumptions=test_assumptions)
             ctl.cleanup()   # clear solver state
+            gc.collect()
 
             if not result.satisfiable:
                 # core still unsatisfiable without `lit` ⇒ truly redundant
@@ -787,9 +562,7 @@ def _minimal_core(ctl: clingo.Control, core_syms: list[Symbol]) -> list[Symbol]:
 
     return shrunk
 
-def _minimal_assumtions(
-    ctl: clingo.Control, assumtions: list[Symbol]
-) -> Tuple[list[Symbol], Optional[list[Symbol]]]:
+def _minimal_assumtions(ctl: clingo.Control, assumtions: list[Symbol], rule_groups) -> list[Symbol]:
     """
     Given an initial unsatisfiable core ``assumtions`` iterate over the rule
     groups encoded in them, dropping all literals of one group at a time and
@@ -797,45 +570,47 @@ def _minimal_assumtions(
     model together with the updated assumption list instead of starting a new
     solve from scratch.
     """
-    shrunk = assumtions.copy()
-    rule_ids = {a: _get_rule_id(a[0]) for a in shrunk if _get_rule_id(a[0]) is not None}
 
-    found_model: Optional[list[Symbol]] = None
 
-    for rule_id in set(rule_ids.values()):
+    for rule_group in sorted(rule_groups, key=len):        
 
-        # remove all assumptions with this rule_id
-        test_assumptions = [a for a in shrunk if rule_ids.get(a) != rule_id]
+        test_assumptions = [assumtion for assumtion in assumtions if _get_rule_id(assumtion[0]) not in rule_group]
 
-        logger.info(
-            "Testing assumptions without rule_id %s (%s remaining)",
-            rule_id,
-            len(test_assumptions),
-        )
+        logger.info("Testing assumptions without rule_ids %s (%s remaining)", rule_group , len(test_assumptions))
 
         collected: list[list[Symbol]] = []
 
         def on_model(m: clingo.Model) -> None:
             """Callback to handle models found during solving."""
-            logger.info("Model found with rule_id %s", rule_id)
-            collected.append(m.symbols(shown=True))
+            logger.info("Model found with cost %s", m.cost)
+            return False
 
         # solve under these assumptions
         result = ctl.solve(assumptions=test_assumptions, on_model=on_model)
         ctl.cleanup()
+        gc.collect()  # clear solver state
         if result.satisfiable:
-            # remove rules with this rule_id from the assumptions
-            shrunk = test_assumptions
-            found_model = collected[-1] if collected else None
-            logger.info("Removed all assumptions with rule_id %s", rule_id)
-            break
-        else:
-            logger.info(
-                "Keeping assumptions with rule_id %s; still unsatisfiable without them",
-                rule_id,
-            )
+            logger.info("Assumptions %s are satisfiable, removing rule group %s", len(test_assumptions), rule_group)
+            return test_assumptions
 
-    return shrunk, found_model
+def rule_groups(atoms: Iterable[Symbol]) -> list[Symbol]:
+    # filter rule groups from the results
+    groups = {}
+    for atom in atoms:
+        if atom.name == "rule_group":
+            if  groups.get(atom.arguments[0].name, None) is None:
+                groups[atom.arguments[0].name] = [atom.arguments[1].name]
+            else:
+                groups[atom.arguments[0].name] =  groups[atom.arguments[0].name] + [atom.arguments[1].name]
+    
+    groups_list = [sorted([k]+ v) for k, v in groups.items()]
+    unique_groups = set(tuple(g) for g in groups_list)
+
+    return unique_groups
+
+            
+
+    
 
 
 def do_solve(
@@ -937,45 +712,45 @@ def _run_incremental(
             on_model=make_model_cb(models, step, template, parser, presenter, name),
             on_core=lambda c: core.extend(c)
         )
-        hard = result.satisfiable
-        del result
-        gc.collect()
+        
+        is_sat = result.satisfiable
+        
 
-        if not hard and core:
+        if not is_sat and core:
+
+            rule_groups_list = rule_groups(model) if model else []
+
+            del result
+            gc.collect()
             
             logger.info("Found core symbols at step %s: %s", step, len(core))
-            # core_syms = [lit_map[l] for l in core if l in lit_map]
+            core_syms = [lit_map[l] for l in core if l in lit_map]
             # min_core = _minimal_core(ctl, core_syms)
             # print(f"Minimal core symbols: {len(min_core)}")
 
-            # assumptions = [assumption for assumption in assumptions if lit_map[assumption[0]] not in min_core]
-            assumptions, new_model = _minimal_assumtions(
-                ctl, [(lit_map[a], v) for a, v in assumptions]
-            )
+            # assumptions = [(lit_map[assumption[0]],True) for assumption in assumptions if lit_map[assumption[0]] not in core_syms]
+            assumptions = _minimal_assumtions(ctl, [(lit_map[a], v) for a, v in assumptions], rule_groups_list)
             logger.info("Remaining assumptions: %s", len(assumptions))
             core.clear()
             models.clear()
-            if new_model is not None:
-                models.append(new_model)
-                hard = True
-            else:
-                result = ctl.solve(
-                    assumptions=assumptions,
-                    on_model=make_model_cb(models, step, template, parser, presenter, name),
-                    on_core=lambda c: core.extend(c)
-                )
-                hard = result.satisfiable
-                del result
-                gc.collect()
-
+            result = ctl.solve(
+                assumptions=assumptions,
+                on_model=make_model_cb(models, step, template, parser, presenter, name),
+                on_core=lambda c: core.extend(c)
+            )
+            is_sat = result.satisfiable
+            del result
+ 
         # Fallback to soft
-        if not hard:
+        if not is_sat:
             ctl.cleanup()
             models.clear()
             _activate_hints(ctl, hints, step)
             ctl.configuration.solve.heuristic = "Vsids-Domain"
             logger.info("No model found with hard guidance, using soft heuristics.")
             ctl.solve(on_model=make_model_cb(models, step, template, parser, presenter, name))
+        
+        gc.collect()
 
         # Record time and result
         duration = time.time() - t0

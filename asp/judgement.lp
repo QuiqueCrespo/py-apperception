@@ -307,6 +307,27 @@ init(A) :-
 init(A) :-
     exogenous(A, 1).
 
+rule_head(R, VA) :-
+    rule_causes_head(R, VA).
+
+rule_head(R, VA) :-
+    rule_arrow_head(R, VA).
+
+rule_group(R1, R2) :-
+    use_rule(R1),
+    use_rule(R2),
+    R1 != R2,
+    rule_head(R1, s(P,V)),
+    rule_body(R2, s(P,V)).
+
+rule_group(R1, R2) :-
+    use_rule(R1),
+    use_rule(R2),
+    R1 != R2,
+    rule_head(R1, s2(P,V,_)),
+    rule_body(R2, s2(P,V,_)).
+
+    
 
 % % 1. Penalty facts for rules
 
@@ -332,3 +353,4 @@ init(A) :-
 #show init/1.
 #show gen_permanent/1.
 #show force/2.
+#show rule_group/2.
