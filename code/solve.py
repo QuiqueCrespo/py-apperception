@@ -787,27 +787,38 @@ def _minimal_core(ctl: clingo.Control, core_syms: list[Symbol]) -> list[Symbol]:
 
     return shrunk
 
-def _minimal_assumtions(ctl: clingo.Control, assumtions: list[Symbol]) -> list[Symbol]:
+def _minimal_assumtions(
+    ctl: clingo.Control, assumtions: list[Symbol]
+) -> Tuple[list[Symbol], Optional[list[Symbol]]]:
     """
-    Given an initial unsatisfiable core `core_syms`, repeatedly try to remove
-    each literal and check if the remaining set is still unsatisfiable.
-    Stop once no further literals can be dropped.
+    Given an initial unsatisfiable core ``assumtions`` iterate over the rule
+    groups encoded in them, dropping all literals of one group at a time and
+    checking satisfiability.  When removing a group yields a model, return that
+    model together with the updated assumption list instead of starting a new
+    solve from scratch.
     """
     shrunk = assumtions.copy()
     rule_ids = {a: _get_rule_id(a[0]) for a in shrunk if _get_rule_id(a[0]) is not None}
-    changed = True
+
+    found_model: Optional[list[Symbol]] = None
 
     for rule_id in set(rule_ids.values()):
-        
+
         # remove all assumptions with this rule_id
         test_assumptions = [a for a in shrunk if rule_ids.get(a) != rule_id]
 
-        logger.info("Testing assumptions without rule_id %s (%s remaining)", rule_id, len(test_assumptions))
+        logger.info(
+            "Testing assumptions without rule_id %s (%s remaining)",
+            rule_id,
+            len(test_assumptions),
+        )
 
-        def on_model(m: clingo.Model) -> bool:
+        collected: list[list[Symbol]] = []
+
+        def on_model(m: clingo.Model) -> None:
             """Callback to handle models found during solving."""
             logger.info("Model found with rule_id %s", rule_id)
-            return False
+            collected.append(m.symbols(shown=True))
 
         # solve under these assumptions
         result = ctl.solve(assumptions=test_assumptions, on_model=on_model)
@@ -815,12 +826,16 @@ def _minimal_assumtions(ctl: clingo.Control, assumtions: list[Symbol]) -> list[S
         if result.satisfiable:
             # remove rules with this rule_id from the assumptions
             shrunk = test_assumptions
+            found_model = collected[-1] if collected else None
             logger.info("Removed all assumptions with rule_id %s", rule_id)
             break
         else:
-            logger.info("Keeping assumptions with rule_id %s; still unsatisfiable without them", rule_id)
+            logger.info(
+                "Keeping assumptions with rule_id %s; still unsatisfiable without them",
+                rule_id,
+            )
 
-    return shrunk
+    return shrunk, found_model
 
 
 def do_solve(
@@ -934,18 +949,24 @@ def _run_incremental(
             # print(f"Minimal core symbols: {len(min_core)}")
 
             # assumptions = [assumption for assumption in assumptions if lit_map[assumption[0]] not in min_core]
-            assumptions = _minimal_assumtions(ctl, [(lit_map[a], v) for a, v in assumptions])
+            assumptions, new_model = _minimal_assumtions(
+                ctl, [(lit_map[a], v) for a, v in assumptions]
+            )
             logger.info("Remaining assumptions: %s", len(assumptions))
             core.clear()
             models.clear()
-            result = ctl.solve(
-                assumptions=assumptions,
-                on_model=make_model_cb(models, step, template, parser, presenter, name),
-                on_core=lambda c: core.extend(c)
-            )
-            hard = result.satisfiable
-            del result
-            gc.collect()
+            if new_model is not None:
+                models.append(new_model)
+                hard = True
+            else:
+                result = ctl.solve(
+                    assumptions=assumptions,
+                    on_model=make_model_cb(models, step, template, parser, presenter, name),
+                    on_core=lambda c: core.extend(c)
+                )
+                hard = result.satisfiable
+                del result
+                gc.collect()
 
         # Fallback to soft
         if not hard:
