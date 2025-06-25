@@ -1,78 +1,59 @@
-
-import sys
-import subprocess
-from itertools import product, count
-from dataclasses import dataclass
-from typing import List, Tuple, Union, Iterator, Optional
+import argparse
+import gc
+import logging
 import os
 import re
 import time
-import logging
-import argparse
-import clingo
-from clingo.symbol import Number, Function, Symbol
-from typing import Iterable, Sequence
-from Interpretation import Type as T, Object, Var, Concept, Template
-from ClingoParser import ClingoOutput, ClingoResult, ClingoParser, ClingoPresenter, write_latex
-import gc
-
+from dataclasses import dataclass
+from itertools import count
 from pathlib import Path
+from typing import Iterable, List, Optional, Sequence, Tuple
+
+import clingo
+from clingo.symbol import Function, Number, Symbol
+
+# Local application imports
+from ClingoParser import ClingoOutput, ClingoParser, ClingoPresenter
+from Interpretation import Concept, Object, Template, Type as T, Var
+from SolveTemplates import (
+    make_eca_template,
+    template_eca,
+    template_pacman,
+    template_sokoban,
+)
+import PacmanData2D as PacmanData
+import PacmanTypes
+import SokobanData2D as SokobanData
+import SokobanTypes
+import matplotlib.pyplot as plt
 
 
-try:
-    import matplotlib.pyplot as _plt
-except Exception:  # pragma: no cover - optional dependency
-    _plt = None
+# --- Configuration and Constants ---
 
 logger = logging.getLogger(__name__)
 
-from SolveTemplates import (
-    template_sokoban,
-    # template_eca_small,
-    template_eca,
-    make_eca_template,
-    template_pacman,
-)
-import SokobanData2D as SokobanData
-import SokobanTypes
-import PacmanData2D as PacmanData
-import PacmanTypes
+# File Paths
+XOR_GROUP_FILE_NAME = "temp/gen_xor_groups.lp"
 
+# Flags
+FLAG_CONDOR: bool = False
+FLAG_DELETE_TEMP: bool = False
+FLAG_OUTPUT_LATEX: bool = False
+FLAG_ABLATION_REMOVE_COST: bool = False
+FLAG_ABLATION_REMOVE_PERMANENTS: bool = False
 
-# Constants
-xor_group_file_name = "temp/gen_xor_groups.lp"
-flag_condor: bool = False
-flag_delete_temp: bool = False
-flag_output_latex: bool = False
-flag_ablation_remove_cost: bool = False
-flag_ablation_remove_permanents: bool = False
-const_time_limit: int = 14400
+# Solving Parameters
+DEFAULT_TIME_LIMIT: int = 14400  # seconds
+BASE_PRIORITY: int = 10  # initial priority of a hint batch
+PRIORITY_STEP: int = 1  # priority increment per horizon step
+MAX_INCREMENTAL_STEPS: int = 14
 
-show_answer_set: bool = False
-show_extraction: bool = True
+# Display Options
+SHOW_ANSWER_SET: bool = False
+SHOW_EXTRACTION: bool = True
 
-
-
-parser = ClingoParser(show_answer_set=show_answer_set,
-                     show_extraction=show_extraction)
-
-presenter = ClingoPresenter(show_answer_set=show_answer_set,
-                            show_extraction=show_extraction,
-                            flag_output_latex=flag_output_latex)
-
-# Track timings
-_step_durations: list[tuple[int, float]] = []  
-
-
-# ``hint(atom) -> bool`` — whether this external is currently asserted true
-_known_externals: dict[Function, bool] = {}
-_guide_id = count()  # monotonically increasing suffix for #program names
-
-BASE_PRIORITY: int = 10            # initial priority of a hint batch
-PRIORITY_STEP: int = 1             # priority increment per horizon step
-
-
-INTEREST: set[str] = {
+# Clingo Atom Interests
+INTERESTING_ATOMS: set[str] = {
     "use_rule",
     "rule_var_group",
     "rule_causes_head",
@@ -80,130 +61,697 @@ INTEREST: set[str] = {
     "rule_body",
     "init",
     "gen_permanent",
-    "force"
+    "force",
 }
 
-# ---------------------------- Sokoban-specific solving ----------------------------
+# --- Global State (Carefully managed) ---
+
+# `hint(atom) -> bool` — whether this external is currently asserted true
+_known_externals: dict[Function, bool] = {}
+_guide_id_counter = count()  # monotonically increasing suffix for #program names
+_step_durations: list[tuple[int, float]] = []  # Track timings
+
+
+# --- Clingo Presenter and Parser Initialization ---
+
+parser = ClingoParser(show_answer_set=SHOW_ANSWER_SET, show_extraction=SHOW_EXTRACTION)
+presenter = ClingoPresenter(
+    show_answer_set=SHOW_ANSWER_SET,
+    show_extraction=SHOW_EXTRACTION,
+    flag_output_latex=FLAG_OUTPUT_LATEX,
+)
+
+
+# --- Data Extraction Functions ---
 
 def get_sokoban_data(name: str) -> Tuple[int, int, int]:
-    e = next((i for i in SokobanData.sokoban_examples if i[0] == name),None)
-    if not e :
-        raise ValueError(f"No sokoban entry called {name}")
-    return extract_sokoban_data(e[1])
+    """
+    Retrieves and extracts Sokoban specific data (max_x, max_y, num_blocks)
+    for a given example name.
+
+    Args:
+        name: The name of the Sokoban example.
+
+    Returns:
+        A tuple containing (max_x, max_y, num_blocks).
+
+    Raises:
+        ValueError: If no Sokoban entry with the given name is found.
+    """
+    example_entry = next(
+        (i for i in SokobanData.sokoban_examples if i[0] == name), None
+    )
+    if not example_entry:
+        raise ValueError(f"No Sokoban entry called {name} found.")
+    return _extract_sokoban_properties(example_entry[1])
 
 
-def extract_sokoban_data(e: SokobanTypes.Example) -> Tuple[int, int, int]:
-    s = e.initial_state  # List[str]
-    max_x = len(s[0])
-    max_y = len(s)
-    num_blocks = sum(row.count('b') for row in s)
+def _extract_sokoban_properties(example: SokobanTypes.Example) -> Tuple[int, int, int]:
+    """
+    Extracts maximum x, maximum y, and number of blocks from a Sokoban example.
+
+    Args:
+        example: The SokobanTypes.Example object.
+
+    Returns:
+        A tuple containing (max_x, max_y, num_blocks).
+    """
+    initial_state = example.initial_state  # List[str]
+    max_x = len(initial_state[0])
+    max_y = len(initial_state)
+    num_blocks = sum(row.count("b") for row in initial_state)
     return max_x, max_y, num_blocks
 
 
-# ---------------------------- Pacman-specific solving -----------------------------
-
 def get_pacman_data(name: str) -> Tuple[int, int, int, int]:
-    e = next((i for i in PacmanData.pacman_examples if i[0] == name), None)
-    if not e:
-        raise ValueError(f"No pacman entry called {name}")
-    return extract_pacman_data(e[1])
+    """
+    Retrieves and extracts Pacman specific data (max_x, max_y, num_pellets, num_ghosts)
+    for a given example name.
+
+    Args:
+        name: The name of the Pacman example.
+
+    Returns:
+        A tuple containing (max_x, max_y, num_pellets, num_ghosts).
+
+    Raises:
+        ValueError: If no Pacman entry with the given name is found.
+    """
+    example_entry = next((i for i in PacmanData.pacman_examples if i[0] == name), None)
+    if not example_entry:
+        raise ValueError(f"No Pacman entry called {name} found.")
+    return _extract_pacman_properties(example_entry[1])
 
 
-def extract_pacman_data(e: PacmanTypes.Example) -> Tuple[int, int, int, int]:
-    s = e.initial_state
-    max_x = len(s[0])
-    max_y = len(s)
-    num_pellets = sum(row.count('o') for row in s)
-    num_ghosts = sum(row.count('g') for row in s)
+def _extract_pacman_properties(
+    example: PacmanTypes.Example,
+) -> Tuple[int, int, int, int]:
+    """
+    Extracts maximum x, maximum y, number of pellets, and number of ghosts
+    from a Pacman example.
+
+    Args:
+        example: The PacmanTypes.Example object.
+
+    Returns:
+        A tuple containing (max_x, max_y, num_pellets, num_ghosts).
+    """
+    initial_state = example.initial_state
+    max_x = len(initial_state[0])
+    max_y = len(initial_state)
+    num_pellets = sum(row.count("o") for row in initial_state)
+    num_ghosts = sum(row.count("g") for row in initial_state)
     return max_x, max_y, num_pellets, num_ghosts
 
 
-def solve_sokoban(example_name: str, incremental: bool = False) -> Optional[str]:
-    """Solve a Sokoban instance and return the formatted result."""
-    logger.info("Using example: %s", example_name)
+def get_num_time_steps(input_file_path: str) -> int:
+    """
+    Extracts the maximum time step from an input ASP file by finding
+    the largest number in `senses(*, T)` patterns.
 
-    max_x, max_y, n_blocks = get_sokoban_data(example_name)
-    t = template_sokoban(max_x, max_y, n_blocks)
+    Args:
+        input_file_path: The path to the input ASP file.
 
-    logger.info("max_x: %s max_y: %s n_blocks: %s", max_x, max_y, n_blocks)
-    input_f = f"predict_{example_name}.lp"
-    _, solutions = do_solve("data/sokoban", input_f, t, incremental=incremental)
+    Returns:
+        The maximum time step found in the file.
 
-    if not solutions:
-        logger.warning("No solution found.")
-        return None
-    
-    # print(f"Found {len(solutions)} solutions.")
-    # for ans in answer:
-    #     if flag_output_latex:
-    #         write_latex(t, ans)
-    # outputs = [presenter.present(t, ans) for ans in answer]
-    result = presenter.present(t, solutions)
-    logger.info("Solution found:\n%s", result)
-    return result
+    Raises:
+        FileNotFoundError: If the input file does not exist.
+        ValueError: If no time steps are found in the file.
+    """
+    if not os.path.exists(input_file_path):
+        raise FileNotFoundError(f"Input file {input_file_path} does not exist.")
+
+    with open(input_file_path, "r") as f:
+        content = f.read()
+
+    # Regex to find numbers in senses(*, 1). where 1 is the time step
+    matches = re.findall(r"senses\([^)]*\),\s*(\d+)\)\.", content)
+    if not matches:
+        raise ValueError(f"No time steps found in {input_file_path}.")
+
+    return max(int(match) for match in matches)
 
 
-def solve_pacman(example_name: str, incremental: bool = False) -> Optional[str]:
-    """Solve a Pacman instance and return the formatted result."""
+# --- Clingo Interaction Helper Functions ---
 
-    logger.info("Using example: %s", example_name)
 
-    max_x, max_y, num_pellets, num_ghosts = get_pacman_data(example_name)
-    t = template_pacman(max_x, max_y, num_pellets, num_ghosts)
+def _interesting_atoms(model: Sequence[Symbol]) -> List[Symbol]:
+    """Return the subset of *model* that should serve as hints / assumptions."""
+    return [a for a in model if a.name in INTERESTING_ATOMS]
 
-    logger.info(
-        "max_x: %s max_y: %s pellets: %s ghosts: %s",
-        max_x,
-        max_y,
-        num_pellets,
-        num_ghosts,
+
+def _get_rule_id(atom: Symbol) -> Optional[str]:
+    """Return the rule identifier encoded in *atom* if present."""
+    if atom.name in INTERESTING_ATOMS and atom.arguments:
+        # Assuming the rule ID is the first argument and is a name (string)
+        return str(atom.arguments[0])
+    return None
+
+
+def _wipe_all_hints(ctrl: clingo.Control) -> None:
+    """Set every known `hint/1` external to `false` and remove it."""
+    for ext, is_on in list(_known_externals.items()):
+        if is_on:
+            ctrl.release_external(ext)
+            _known_externals.pop(ext, None)
+
+
+def _activate_hints(ctrl: clingo.Control, atoms: Iterable[Symbol], step: int) -> None:
+    """
+    Attach heuristic guidance for atoms (declare once, enable this step).
+    New externals are declared and grounded; existing ones are assigned true.
+    """
+    atoms = list(atoms)
+    if not atoms:
+        return
+
+    priority = BASE_PRIORITY + PRIORITY_STEP * step
+
+    new_program_lines: list[str] = []  # declarations not yet in the program
+    to_enable: list[Function] = []  # externals to switch on *this* step
+
+    for sym in atoms:
+        ext = Function("hint", [sym])
+        to_enable.append(ext)
+
+        # Declare external & heuristic only once for the lifetime of `ctrl`
+        if ext in _known_externals:
+            continue
+
+        new_program_lines.append(f"#external {ext}.")
+        new_program_lines.append(f"#heuristic {sym} : {ext}. [1@{priority},true]")
+        _known_externals[ext] = False  # remember, but currently off
+
+    # Ground the freshly created declarations
+    if new_program_lines:
+        tag = f"guide_{next(_guide_id_counter)}"
+        ctrl.add(tag, [], "\n".join(new_program_lines))
+        ctrl.ground([(tag, [])])
+
+    # Activate requested externals for this step
+    for ext in to_enable:
+        if not _known_externals[ext]:
+            ctrl.assign_external(ext, True)
+            _known_externals[ext] = True
+
+
+def _make_assumptions(
+    ctl: clingo.Control, atoms: Iterable[Symbol]
+) -> Tuple[List[Tuple[int, bool]], dict[int, Symbol]]:
+    """
+    Translates Clingo `Symbol` objects into solver literals for `assumptions`
+    and returns a mapping from solver literal to `Symbol` for later lookup.
+
+    Args:
+        ctl: The Clingo Control object.
+        atoms: An iterable of Clingo Symbol objects to be used as assumptions.
+
+    Returns:
+        A tuple containing:
+            - A list of (literal, boolean_value) tuples for Clingo's `solve` method.
+            - A dictionary mapping solver literals (integers) to their
+              corresponding Clingo Symbol objects.
+    """
+    assumptions: List[Tuple[int, bool]] = []
+    literal_to_symbol_map: dict[int, Symbol] = {}
+
+    for atom in atoms:
+        sym = Function(atom.name, atom.arguments)
+        try:
+            literal = ctl.symbolic_atoms[sym].literal
+        except KeyError:
+            # If the symbolic atom is unknown, skip it
+            logger.debug("Skipping unknown symbolic atom: %s", sym)
+            continue
+        assumptions.append((literal, True))
+        literal_to_symbol_map[literal] = sym
+
+    return assumptions, literal_to_symbol_map
+
+
+def _collect_asp_files(temp_dir: str, name: str, template: Template) -> List[str]:
+    """
+    Collects all necessary ASP files for loading into Clingo.
+
+    Args:
+        temp_dir: The temporary directory prefix for generated files.
+        name: The base name for generated files.
+        template: The Template object containing auxiliary files.
+
+    Returns:
+        A list of file paths to be loaded by Clingo.
+    """
+    task_file = f"data/{temp_dir}/{name}.lp"
+    temp_prefix = f"temp/{temp_dir}_{name}"
+    init_file = f"{temp_prefix}_init.lp"
+    subs_file = f"{temp_prefix}_subs.lp"
+    rules_file = f"{temp_prefix}_var_atoms.lp"
+    interp_file = f"{temp_prefix}_interpretation.lp"
+    aux_files = [f"asp/{x}" for x in template.frame.aux_files]
+
+    return [task_file, init_file, subs_file, rules_file, interp_file] + aux_files
+
+
+def _setup_control(files: List[str]) -> clingo.Control:
+    """
+    Initializes a Clingo Control object and loads specified ASP files.
+
+    Args:
+        files: A list of file paths to load.
+
+    Returns:
+        A configured Clingo Control object.
+    """
+    ctl = clingo.Control([ "--parallel-mode=2","--keep-facts", "--opt-mode=optN"])
+    for f in files:
+        ctl.load(f)
+    return ctl
+
+
+def model_to_string(model: Sequence[clingo.Symbol]) -> str:
+    """
+    Converts a sequence of Clingo Symbols (a model) into a space-separated string
+    representation.
+    """
+    return " ".join(
+        f"{atom.name}({','.join(str(arg) for arg in atom.arguments)})"
+        for atom in model
     )
-    input_f = f"predict_{example_name}.lp"
-    _, solutions = do_solve("data/pacman", input_f, t, incremental=incremental)
 
-    if not solutions:
-        logger.warning("No solution found.")
+
+def make_model_callback(collector: List[List[Symbol]], step: int):
+    """
+    Returns an `on_model` callback that stores *shown* symbols from a Clingo model.
+
+    Args:
+        collector: A list to append the shown symbols of each model.
+        step: The current solving step, used for logging.
+    """
+
+    def callback(model: clingo.Model):
+        logger.info("Model found with cost %s at step %s", model.cost, step)
+        collector.append(model.symbols(shown=True))
+
+    return callback
+
+
+def pretty_print_model(
+    model: Iterable[Symbol], template: Template
+) -> List[str]:
+    """
+    Formats the model for human consumption using the configured presenter.
+
+    Args:
+        model: An iterable of Clingo Symbols representing the model.
+        template: The Template object associated with the problem.
+
+    Returns:
+        A list of formatted strings representing the model.
+    """
+    model_str = model_to_string(list(model))
+    # ClingoParser expects a list of lines, even if it's just one model string
+    return presenter.present(template, parser.parse_lines([model_str])[0])
+
+
+def _make_timing_graph(step_durations: List[Tuple[int, float]], output_path: Path) -> None:
+    """
+    Plots a bar-chart of per-step solve times and a line of cumulative time.
+
+    Args:
+        step_durations: A list of (step, duration) tuples.
+        output_path: The path to save the generated plot.
+    """
+    if plt is None or not step_durations:
+        logger.warning("matplotlib not available or no step durations to plot.")
+        return
+
+    steps, durations = zip(*step_durations)
+    cumulative = [sum(durations[:i + 1]) for i in range(len(durations))]
+
+    plt.figure(figsize=(max(6, len(steps) * 0.6), 4))
+    plt.bar(steps, durations, label="solve time per step (s)")
+    plt.plot(steps, cumulative, marker="o", label="cumulative runtime (s)")
+    plt.xlabel("Step")
+    plt.ylabel("Seconds")
+    plt.title("Solve-time Profile")
+    plt.tight_layout()
+    plt.legend()
+    plt.savefig(output_path, dpi=150)
+    plt.close()
+
+
+def _get_rule_groups(atoms: Iterable[Symbol]) -> List[Tuple[str, ...]]:
+    """
+    Extracts unique sorted rule groups from a collection of Clingo Symbols.
+
+    Args:
+        atoms: An iterable of Clingo Symbols.
+
+    Returns:
+        A list of tuples, where each tuple represents a sorted unique rule group.
+    """
+    groups_dict: dict[str, List[str]] = {}
+    for atom in atoms:
+        if atom.name == "rule_group" and len(atom.arguments) >= 2:
+            group_id = str(atom.arguments[0])
+            rule_name = str(atom.arguments[1])
+            if group_id not in groups_dict:
+                groups_dict[group_id] = []
+            groups_dict[group_id].append(rule_name)
+
+    # Sort rules within each group and then create unique sorted tuples
+    groups_list = [tuple(sorted([k] + v)) for k, v in groups_dict.items()]
+    # Convert to set and back to list to ensure uniqueness and then sort for consistent order
+    return sorted(list(set(groups_list)))
+
+
+def _minimal_assumptions_refinement(
+    ctl: clingo.Control,
+    initial_assumptions: List[Tuple[int, bool]],
+    rule_groups_list: List[Tuple[str, ...]],
+    step: int,
+    models_collector: List[List[Symbol]],
+    literal_to_symbol_map: dict[int, Symbol],
+) -> bool:
+    """
+    Attempts to find a minimal satisfiable subset of assumptions by iteratively
+    removing rule groups from an unsatisfiable core.
+
+    Args:
+        ctl: The Clingo Control object.
+        initial_assumptions: The list of assumptions (literal, boolean) that led to unsatisfiability.
+        rule_groups_list: A list of unique rule groups identified from the model.
+        step: The current solving step.
+        models_collector: The list to collect found models.
+        literal_to_symbol_map: A mapping from literals to Clingo Symbols.
+
+    Returns:
+        True if a satisfiable model is found after refinement, False otherwise.
+    """
+    logger.info("Attempting assumption refinement...")
+    for rule_group_tuple in sorted(rule_groups_list, key=len):
+        # Convert rule group tuple back to string for comparison with rule IDs
+        rule_group_set = set(rule_group_tuple)
+
+        # Filter out assumptions belonging to the current rule_group_set
+        test_assumptions = []
+        for lit, val in initial_assumptions:
+            symbol = literal_to_symbol_map.get(lit)
+            if symbol and _get_rule_id(symbol) not in rule_group_set:
+                test_assumptions.append((symbol, val))
+
+        logger.info(
+            "Testing assumptions without rule_ids from group %s (%s remaining)",
+            rule_group_set,
+            len(test_assumptions),
+        )
+
+        models_collector.clear() # Clear models for this refinement attempt
+        result = ctl.solve(
+            assumptions=test_assumptions, on_model=make_model_callback(models_collector, step)
+        )
+        is_sat = result.satisfiable
+        del result
+        gc.collect()
+
+        if is_sat:
+            logger.info("Satisfiable model found after removing rule group: %s", rule_group_set)
+            return True
+    logger.info("No satisfiable model found after trying all rule group removals.")
+    return False
+
+
+def _run_incremental_solve(
+    ctl: clingo.Control,
+    template: Template,
+    work_dir: str,
+    input_file: str,
+    pretty_path: Path,
+    step_times: List[Tuple[int, float]],
+) -> Tuple[List[List[Symbol]], Optional[List[Symbol]]]:
+    """
+    Executes an incremental Clingo solve process.
+
+    Args:
+        ctl: The Clingo Control object.
+        template: The Template object for the problem.
+        work_dir: The working directory for input files.
+        input_file: The name of the input file.
+        pretty_path: Path to write pretty-formatted models.
+        step_times: List to record (step, duration) for each solve step.
+
+    Returns:
+        A tuple containing:
+            - A list of all models found (each model being a list of symbols).
+            - The last model found, or None if no solution is found.
+    """
+    all_models: List[List[Symbol]] = []
+    current_hints: List[Symbol] = []
+    max_time_steps = get_num_time_steps(f"{work_dir}/{input_file}")
+    logger.info("Incremental solving up to %s steps", max_time_steps)
+
+    for step in range(1, max_time_steps + 1):
+        ctl.ground([("step", [Number(step)])])
+
+        # If it's the first step (step=0 or 1), we don't apply hints from a previous model
+        if step > 1 and current_hints:
+            _activate_hints(ctl, current_hints, step)
+        else:
+            # For the first step or if no hints, ensure heuristics are default
+            ctl.configuration.solve.heuristic = "Vsids-Domain"
+
+        t0 = time.time()
+        models_current_step: List[List[Symbol]] = []
+
+        # Attempt to solve with hard guidance (assumptions) if hints are available
+        assumptions, literal_to_symbol_map = _make_assumptions(ctl, current_hints)
+        result = ctl.solve(
+            assumptions=[(literal_to_symbol_map[lit], val) for lit, val in assumptions],
+            on_model=make_model_callback(models_current_step, step),
+        )
+        is_satisfiable = result.satisfiable
+        del result  # Release solver resources early
+        gc.collect()
+
+        if not is_satisfiable and current_hints:
+            logger.info("Unsatisfiable with hard guidance at step %s. Attempting refinement.", step)
+            # Try to find a minimal set of assumptions by removing rule groups
+            # We need the model from the previous step to identify rule groups
+            # If `models_current_step` is empty here, it means no model was found to generate hints from.
+            # We can use the last model found in `all_models` if it exists.
+            last_successful_model = all_models[-1] if all_models else []
+            rule_groups_from_last_model = _get_rule_groups(last_successful_model)
+
+            refinement_successful = _minimal_assumptions_refinement(
+                ctl,
+                assumptions,
+                rule_groups_from_last_model,
+                step,
+                models_current_step,
+                literal_to_symbol_map,
+            )
+            is_satisfiable = refinement_successful # Update satisfiability based on refinement attempt
+
+        if not is_satisfiable:
+            logger.warning("No solution found at step %s after all attempts. Stopping incremental solve.", step)
+            break
+
+        # Record time and process result
+        duration = time.time() - t0
+        step_times.append((step, duration))
+
+        if not models_current_step:
+            logger.info("No model found at step %s, stopping.", step)
+            break
+
+        current_model = models_current_step[-1]
+        all_models.extend(models_current_step)
+        current_hints = _interesting_atoms(current_model)
+
+        # Periodically wipe hints to prevent accumulation and potential performance issues
+        if step % 5 == 0:
+            _wipe_all_hints(ctl)
+        ctl.cleanup()  # Clean up internal solver state
+
+        with pretty_path.open("a") as file:
+            file.write(f"--- Model {step:02d} ---\n")
+            file.writelines(pretty_print_model(current_model, template))
+            file.write("\n\n")
+
+        logger.info("Step %02d: %.2fs. Results written to %s", step, duration, pretty_path)
+
+    return all_models, (all_models[-1] if all_models else None)
+
+
+def _run_static_solve(
+    ctl: clingo.Control,
+    template: Template,
+    max_steps: int,
+    pretty_path: Path,
+    step_times: List[Tuple[int, float]],
+) -> Tuple[List[List[Symbol]], Optional[List[Symbol]]]:
+    """
+    Executes a static Clingo solve process.
+
+    Args:
+        ctl: The Clingo Control object.
+        template: The Template object for the problem.
+        max_steps: The maximum number of steps for grounding.
+        pretty_path: Path to write pretty-formatted models.
+        step_times: List to record (max_steps, duration) for the solve.
+
+    Returns:
+        A tuple containing:
+            - A list of all models found (each model being a list of symbols).
+            - The last model found, or None if no solution is found.
+    """
+    all_models: List[List[Symbol]] = []
+    t0 = time.time()
+
+    # Ground all steps upfront for static solving
+    for step_num in range(1, max_steps + 1):
+        ctl.ground([("step", [Number(step_num)])])
+
+    ctl.solve(on_model=make_model_callback(all_models, max_steps))
+
+    duration = time.time() - t0
+    step_times.append((max_steps, duration))
+
+    if not all_models:
+        logger.info("No model found for static solve.")
+        return [], None
+
+    last_model = all_models[-1]
+    with pretty_path.open("a") as file:
+        file.writelines(pretty_print_model(last_model, template))
+
+    logger.info("Static solve: %.2fs for %s steps. Results written to %s", duration, max_steps, pretty_path)
+    return all_models, last_model
+
+
+# --- Solving Entry Points ---
+
+
+def solve(
+    problem_type: str,
+    example_name: str,
+    incremental: bool = False,
+) -> Optional[str]:
+    """
+    Solves a problem (Sokoban, Pacman, or ECA) using Clingo.
+
+    Args:
+        problem_type: "sokoban", "pacman", or "eca".
+        example_name: The name of the example or input file.
+        incremental: Whether to use incremental solving.
+
+    Returns:
+        The formatted solution as a string, or None if no solution is found.
+    """
+    logger.info("Solving %s problem for example: %s (incremental: %s)", problem_type, example_name, incremental)
+
+    template: Template
+    work_dir: str
+    input_file: str
+
+    if problem_type == "sokoban":
+        max_x, max_y, n_blocks = get_sokoban_data(example_name)
+        template = template_sokoban(max_x, max_y, n_blocks)
+        work_dir = "data/sokoban"
+        input_file = f"predict_{example_name}.lp"
+        logger.info("Sokoban parameters: max_x=%s, max_y=%s, n_blocks=%s", max_x, max_y, n_blocks)
+    elif problem_type == "pacman":
+        max_x, max_y, num_pellets, num_ghosts = get_pacman_data(example_name)
+        template = template_pacman(max_x, max_y, num_pellets, num_ghosts)
+        work_dir = "data/pacman"
+        input_file = f"predict_{example_name}.lp"
+        logger.info(
+            "Pacman parameters: max_x=%s, max_y=%s, pellets=%s, ghosts=%s",
+            max_x, max_y, num_pellets, num_ghosts,
+        )
+    elif problem_type == "eca":
+        template = template_eca(False) # `False` likely indicates a specific variant or setting for ECA
+        work_dir = "data/eca"
+        input_file = f"{example_name}.lp" if not example_name.endswith(".lp") else example_name
+        logger.info("ECA input file: %s", input_file)
+    else:
+        raise ValueError(f"Unknown problem type: {problem_type}")
+
+    # Prepare template and generate auxiliary files
+    temp_dir_prefix = work_dir.split("/")[-1] # e.g., "sokoban", "pacman", "eca"
+    base_name = input_file.replace(".lp", "")
+    _generate_template_files(template, temp_dir_prefix, base_name)
+
+    files_to_load = _collect_asp_files(temp_dir_prefix, base_name, template)
+    # Add common ASP files
+    files_to_load.extend(["asp/judgement.lp", "asp/constraints.lp", "asp/step.lp"])
+
+    result_path = Path("temp") / f"{temp_dir_prefix}_{base_name}_results.txt"
+    pretty_path = result_path.with_name(f"{result_path.stem}_ex.txt")
+
+    # Ensure output directories exist and files are clean
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    result_path.write_text("")
+    pretty_path.write_text("")
+
+    ctl = _setup_control(files_to_load)
+    ctl.ground([("base", [])])
+
+    _step_durations.clear() # Clear global durations list for each new solve call
+
+    models: List[List[Symbol]]
+    last_model: Optional[List[Symbol]]
+
+    if incremental:
+        models, last_model = _run_incremental_solve(
+            ctl, template, work_dir, input_file, pretty_path, _step_durations
+        )
+    else:
+        models, last_model = _run_static_solve(
+            ctl, template, MAX_INCREMENTAL_STEPS, pretty_path, _step_durations
+        )
+
+    # Plot timing graph
+    graph_path = Path("temp") / f"{temp_dir_prefix}_{base_name}_timing.png"
+    _make_timing_graph(_step_durations, graph_path)
+    logger.info("Timing graph saved to %s", graph_path)
+
+    # Optional cleanup of temporary files
+    if FLAG_DELETE_TEMP:
+        for f in Path("temp").glob(f"{temp_dir_prefix}_{base_name}_*"):
+            f.unlink(missing_ok=True)
+        logger.info("Temporary files deleted for %s/%s", temp_dir_prefix, base_name)
+
+    if not last_model:
+        logger.warning("No solution found for %s problem: %s", problem_type, example_name)
         return None
 
-    result = presenter.present(t, solutions)
-    logger.info("Solution found:\n%s", result)
-    return result
+    result_str = presenter.present(template, parser.parse_lines([model_to_string(last_model)])[0])
+    logger.info("Solution found:\n%s", result_str)
+    return result_str
 
 
-def solve_eca(input_name: str, incremental: bool = False) -> Optional[str]:
-    """Solve an ECA instance with optional incremental solving."""
+def _generate_template_files(template: Template, temp_dir: str, input_name: str) -> None:
+    """
+    Generates auxiliary files needed for the Clingo solver from the template.
 
-    logger.info("Using ECA input: %s", input_name)
-    t = template_eca(False)
-    input_f = f"{input_name}.lp" if not input_name.endswith(".lp") else input_name
+    Args:
+        template: The Template object.
+        temp_dir: The directory prefix for generated files (e.g., "sokoban").
+        input_name: The base name of the input file (without .lp extension).
+    """
+    # Create temp directory if it doesn't exist
+    os.makedirs("temp", exist_ok=True)
+    full_name = f"{temp_dir}_{input_name}"
+    template.gen_inits(full_name)
+    template.gen_subs(full_name)
+    template.gen_var_atoms(full_name)
+    template.gen_interpretation(full_name)
+    logger.debug("Generated template files for %s", full_name)
 
-    _, solutions = do_solve("data/eca", input_f, t, incremental=incremental)
 
-    if not solutions:
-        logger.warning("No solution found.")
-        return None
-
-    result = presenter.present(t, solutions)
-    logger.info("Solution found:\n%s", result)
-    return result
-
-
-
-# -------------------------------------------------------------------------------
-# ECA-specific iteration
-# -------------------------------------------------------------------------------
-
-# def solve_eca_iteratively(input_f):
-#     """
-#     Solves ECA problems iteratively using a specific set of templates.
-
-#     Args:
-#         input_f (str): The input file prefix.
-#     """
-#     # Haskell: solve_iteratively "data/eca" input_f (all_eca_templates input_f) False False
-#     solve_iteratively("data/eca", input_f, all_eca_templates(input_f), False, False)
-
-def all_eca_templates(input_f):
+def all_eca_templates(input_f: str):
     """
     Generates all ECA templates for iterative solving.
 
@@ -215,8 +763,81 @@ def all_eca_templates(input_f):
         list: A list of (description_string, Template_object) tuples.
     """
     # Haskell: map (make_eca_template False input_f) [0..8]
-    return [make_eca_template(False, input_f, i) for i in range(9)] # 0 to 8 inclusive
+    # The `input_f` parameter is ignored in the original `make_eca_template` call.
+    return [make_eca_template(False, input_f, i) for i in range(9)]  # 0 to 8 inclusive
 
+
+# --- Main Entry Point ---
+
+def main(argv: Optional[List[str]] = None) -> None:
+    """
+    Entry point for the command line interface.
+    """
+    parser_cli = argparse.ArgumentParser(description="Solve problems using Clingo")
+    subparsers = parser_cli.add_subparsers(dest="command", required=True)
+
+    sok_cmd = subparsers.add_parser("sokoban", help="Solve a Sokoban instance")
+    sok_cmd.add_argument("example", help="Name of the Sokoban example")
+    sok_cmd.add_argument(
+        "--incremental", action="store_true", help="Use incremental solving"
+    )
+
+    pac_cmd = subparsers.add_parser("pacman", help="Solve a Pacman instance")
+    pac_cmd.add_argument("example", help="Name of the Pacman example")
+    pac_cmd.add_argument(
+        "--incremental", action="store_true", help="Use incremental solving"
+    )
+
+    eca_cmd = subparsers.add_parser("eca", help="Solve an ECA instance")
+    eca_cmd.add_argument("input", help="Name of the ECA input file (e.g., 'rules')")
+    eca_cmd.add_argument(
+        "--incremental", action="store_true", help="Use incremental solving"
+    )
+
+    args = parser_cli.parse_args(argv)
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    if args.command == "sokoban":
+        solve(problem_type="sokoban", example_name=args.example, incremental=args.incremental)
+    elif args.command == "pacman":
+        solve(problem_type="pacman", example_name=args.example, incremental=args.incremental)
+    elif args.command == "eca":
+        solve(problem_type="eca", example_name=args.input, incremental=args.incremental)
+
+
+if __name__ == "__main__":
+    main()
+
+
+# def gen_bash(dir: str, input_f: str, add_const: bool, t: Template) -> Tuple[str, str]:
+#     name = f"{dir}_{input_f}"
+#     task_file = f"data/{dir}/{input_f}.lp"
+#     d = "temp/"
+#     fpath = f"{d}{name}_script.sh"
+#     with open(fpath, "w") as fh:
+#         fh.write(f'echo "Processing {task_file}."\n\n')
+#     init_f = f"{d}{name}_init.lp"
+#     subs_f = f"{d}{name}_subs.lp"
+#     rules_f = f"{d}{name}_var_atoms.lp"
+#     interp_f = f"{d}{name}_interpretation.lp"
+#     auxs = [f"asp/{x}" for x in t.frame.aux_files]
+#     aux_s = " ".join(auxs)
+#     results_f = f"{d}{name}_results.txt"
+#     handle = f" > {results_f}"
+#     args = f" --stats --verbose=2 --warn=no-atom-undefined --time-limit={const_time_limit} "
+#     args_prime = args + f"-c k_xor_group=$1 {xor_group_file_name} " if add_const else args
+#     clingo = "/vol/lab/clingo5/clingo " if flag_condor else "clingo "
+#     costs = "" if flag_ablation_remove_cost else " asp/costs.lp "
+#     s = (
+#         clingo + args_prime + task_file + " " + init_f + " " + subs_f + " " +
+#         rules_f + " " + interp_f + " " + aux_s +
+#         " asp/judgement.lp asp/constraints.lp" + costs + handle + "\n\n"
+#     )
+#     with open(fpath, "a") as fh:
+#         fh.write(s)
+#     logger.info("Generated %s", fpath)
+#     os.chmod(fpath, 0o777)
+#     return fpath, results_f
 # # -------------------------------------------------------------------------------
 # # ECA iteration using the general code for template iteration
 # # -------------------------------------------------------------------------------
@@ -335,482 +956,3 @@ def all_eca_templates(input_f):
 #     xs = list(map(int, x.split()))
 #     ys = list(map(int, y.split()))
 #     return xs < ys
-
-
-def get_num_time_steps(input_file: str) -> int:
-    # use regex to extract the nuber from lines like: senses(*, 1). where 1 is the time step. find all the instances of this pattern as get the biggest value
-    if not os.path.exists(input_file):
-        raise FileNotFoundError(f"Input file {input_file} does not exist.")
-    
-    with open(input_file, 'r') as f:
-        content = f.read()
-    matches = re.findall(r'senses\([^)]*\),\s*(\d+)\)\.', content)
-    if not matches:
-        raise ValueError(f"No time steps found in {input_file}.")
-    return max(int(match) for match in matches)
-
-
-def get_assumptions(model: Sequence[clingo.Symbol]) -> list:
-    assumptions = []
-    for atom in model:
-        if atom.name in {
-            "use_rule",
-            "rule_var_group",
-            "rule_causes_head",
-            "rule_arrow_head",
-            "rule_body",
-        }:
-            assumptions.append((Function(atom.name, atom.arguments), True))
-    return assumptions
-
-    
-def model_to_string(model: Sequence[clingo.Symbol]) -> str:
-    return " ".join(
-        f"{atom.name}({','.join(str(arg) for arg in atom.arguments)})"
-        for atom in model
-    )
-
-def make_model_cb(
-    collector: list[List[Symbol]],
-    step: int,
-
-):
-    """Return an *on_model* callback that stores *shown* symbols."""
-
-    def cb(model: clingo.Model):
-        logger.info("Model found with cost %s at step %s", model.cost, step)
-        collector.append(model.symbols(shown=True))
-        return None
-
-    return cb
-
-def pretty(model: Iterable[Symbol], template, parser, presenter) -> List[str]:
-    """Format the model for human consumption."""
-
-    line = " ".join(
-        f"{a.name}({','.join(map(str, a.arguments))})" for a in model
-    )
-    return presenter.present(template, parser.parse_lines([line])[0])
-
-def _interesting_atoms(model: Sequence[Symbol]) -> list[Symbol]:
-    """Return the subset of *model* that should serve as hints / assumptions."""
-    return [a for a in model if a.name in INTEREST]
-
-
-def _get_rule_id(atom: Symbol) -> Symbol | None:
-    """Return the rule identifier encoded in *atom* if present."""
-
-    if atom.name in {
-        "use_rule",
-        "rule_var_group",
-        "rule_causes_head",
-        "rule_arrow_head",
-        "rule_body",
-    } and atom.arguments:
-        return atom.arguments[0].name
-    return None
-
-
-def _wipe_all_hints(ctrl: clingo.Control) -> None:
-    """Set every known ``hint/1`` external to *false* and remove it."""
-    for ext, is_on in list(_known_externals.items()):
-        if is_on:
-            ctrl.release_external(ext)
-            _known_externals.pop(ext, None)
-
-def _activate_hints(ctrl: clingo.Control, atoms: Iterable[Symbol], step: int) -> None:
-    """Attach *heuristic* guidance for *atoms* (declare once, enable this step)."""
-
-    atoms = list(atoms)
-    if not atoms:
-        return
-
-    priority = BASE_PRIORITY + PRIORITY_STEP * step
-
-    new_program_lines: list[str] = []   # declarations not yet in the program
-    to_enable: list[Function] = []      # externals to switch on *this* step
-
-    for sym in atoms:
-        ext = Function("hint", [sym])
-        to_enable.append(ext)
-
-        # Declare external & heuristic only once for the lifetime of *ctrl*
-        if ext in _known_externals:
-            continue
-
-        new_program_lines.append(f"#external {ext}.")
-        new_program_lines.append(
-            f"#heuristic {sym} : {ext}. [1@{priority},true]"
-        )
-        _known_externals[ext] = False  # remember, but currently off
-
-    # Ground the freshly created declarations
-    if new_program_lines:
-        tag = f"guide_{next(_guide_id)}"
-        ctrl.add(tag, [], "\n".join(new_program_lines))
-        ctrl.ground([(tag, [])])
-
-    # Activate requested externals for this step
-    for ext in to_enable:
-        if not _known_externals[ext]:
-            ctrl.assign_external(ext, True)
-            _known_externals[ext] = True
-
-
-def _make_graph(step_durations,outfile: Path) -> None:
-    """Plot bar-chart of per-step solve times and a line of cumulative time."""
-    if _plt is None or not _step_durations:
-        return
-
-    steps, durations = zip(*step_durations)
-    cumulative = [sum(durations[:i + 1]) for i in range(len(durations))]
-
-    _plt.figure(figsize=(max(6, len(steps) * 0.6), 4))
-    _plt.bar(steps, durations, label="solve time per step (s)")
-    _plt.plot(steps, cumulative, marker="o", label="cumulative runtime (s)")
-    _plt.xlabel("step")
-    _plt.ylabel("seconds")
-    _plt.title("Solve-time profile")
-    _plt.tight_layout()
-    _plt.legend()
-    _plt.savefig(outfile, dpi=150)
-    _plt.close()
-
-def _make_assumptions(
-    ctrl: clingo.Control, atoms: Iterable[Symbol]
-) -> tuple[list[tuple[int, bool]], dict[int, Symbol]]:
-    """Translate *atoms* to solver literals for ``assumptions`` and return a
-    mapping from solver literal to ``Symbol`` for later lookup."""
-
-    assumptions: list[tuple[int, bool]] = []
-    mapping: dict[int, Symbol] = {}
-    for atom in atoms:
-        sym = Function(atom.name, atom.arguments)
-        try:
-            lit = ctrl.symbolic_atoms[sym].literal
-        except KeyError:
-            # If the symbolic atom is unknown just skip it
-            continue
-        assumptions.append((lit, True))
-        mapping[lit] = sym
-
-    return assumptions, mapping
-
-def _collect_asp_files(tmp_dir, name, t_desc):
-    files = files_to_load(tmp_dir, name, t_desc)
-    files += ["asp/judgement.lp", "asp/constraints.lp", "asp/step.lp"]
-    return files
-
-def _setup_control(files):
-    ctl = clingo.Control(["--parallel-mode=4"])
-
-    for f in files:
-        ctl.load(f)
-    return ctl
-
-
-def _minimal_assumptions(ctl: clingo.Control, assumptions: list[Symbol], rule_groups, step, models) -> list[Symbol]:
-    """
-    Given an initial unsatisfiable core ``assumptions`` iterate over the rule
-    groups encoded in them, dropping all literals of one group at a time and
-    checking satisfiability.  When removing a group yields a model, return that
-    model together with the updated assumption list instead of starting a new
-    solve from scratch.
-    """
-
-
-    for rule_group in sorted(rule_groups, key=len):        
-
-        test_assumptions = [assumption for assumption in assumptions if _get_rule_id(assumption[0]) not in rule_group]
-
-        logger.info("Testing assumptions without rule_ids %s (%s remaining)", rule_group , len(test_assumptions))
-        # solve under these assumptions
-        ctl.solve(assumptions=test_assumptions, on_model=make_model_cb(models, step))
-        ctl.cleanup()
-        gc.collect()  # clear solver state
-
-
-def rule_groups(atoms: Iterable[Symbol]) -> list[Symbol]:
-    # filter rule groups from the results
-    groups = {}
-    for atom in atoms:
-        if atom.name == "rule_group":
-            if  groups.get(atom.arguments[0].name, None) is None:
-                groups[atom.arguments[0].name] = [atom.arguments[1].name]
-            else:
-                groups[atom.arguments[0].name] =  groups[atom.arguments[0].name] + [atom.arguments[1].name]
-    
-    groups_list = [sorted([k]+ v) for k, v in groups.items()]
-    unique_groups = set(tuple(g) for g in groups_list)
-
-    return unique_groups
-
-            
-
-    
-
-
-def do_solve(
-    work_dir: str,
-    input_file: str,
-    template: Template,
-    delete_temp: bool = False,
-    max_steps: int = 14,
-    incremental: bool = False
-) -> Tuple[str, Optional[ClingoOutput]]:
-    """
-    Run a Clingo solve (static or incremental), collect models, record times per step,
-    write results incrementally, and plot a timing graph.
-    """
-    # Prepare template and files
-    tmp_dir, name, _, t_desc = do_template(False, template, work_dir, input_file)
-    files = _collect_asp_files(tmp_dir, name, t_desc)
-    result_path = Path("temp") / f"{tmp_dir}_{name}_results.txt"
-    pretty_path = result_path.with_name(f"{result_path.stem}_ex.txt")
-
-    # Ensure clean output
-    result_path.parent.mkdir(parents=True, exist_ok=True)
-    result_path.write_text("")
-    pretty_path.write_text("")
-
-    # Solver setup
-    ctl = _setup_control(files)
-    ctl.ground([("base", [])])
-
-
-    # Record step times
-    step_times: List[Tuple[int, float]] = []
-
-    # Run solving
-    if incremental:
-        models, last_model = _run_incremental(
-            ctl, template, name,
-            work_dir, input_file,
-            result_path, pretty_path,
-            step_times
-        )
-    else:
-        models, last_model = _run_static(
-            ctl, template, name,
-            max_steps,
-            result_path, pretty_path,
-            step_times
-        )
-
-    # Plot timing graph
-    graph_path = Path("temp") / f"{tmp_dir}_{name}_timing.png"
-    _make_graph(step_times, graph_path)
-    logger.info("Timing graph saved to %s", graph_path)
-
-    # Optional cleanup
-    if delete_temp:
-        subprocess.call(f"rm temp/{tmp_dir}_*", shell=True)
-
-    # Parse outputs
-    parsed: Optional[ClingoOutput] = None
-    if last_model:
-        parsed = parser.parse_lines([model_to_string(last_model)])[0]
-
-    return str(result_path), parsed
-
-
-# --- helper functions ---
-
-def _run_incremental(
-    ctl,
-    template,
-    work_dir: str,
-    input_file: str,
-    pretty_path: Path,
-    step_times: List[Tuple[int, float]]
-):
-    models, hints = [], []
-    max_ts = get_num_time_steps(f"{work_dir}/{input_file}")
-    logger.info("Incremental up to %s steps", max_ts)
-
-    for step in range(1, max_ts + 1):
-        ctl.ground([("step", [Number(step)])])
-        if step <= 1:
-            continue
-
-        # Time this step
-        t0 = time.time()
-        models.clear()
-
-        # Hard guidance
-        ctl.configuration.solve.heuristic = "None"
-        assumptions, lit_map = _make_assumptions(ctl, hints) if hints else ([], {})
-        logger.info("Step %02d with %d assumptions", step, len(assumptions))
-        result = ctl.solve(
-            assumptions=[(lit_map[a],v) for a, v in assumptions],
-            on_model=make_model_cb(models, step),
-        )
-        
-        is_sat = result.satisfiable
-        del result
-        gc.collect()
-
-        if not is_sat:
-
-            rule_groups_list = rule_groups(model) if model else []
-
-
-        
-            _minimal_assumptions(ctl, [(lit_map[a], v) for a, v in assumptions], rule_groups_list, step, models)
-            logger.info("Remaining assumptions: %s", len(assumptions))
-           
-            is_sat = result.satisfiable
- 
-        # Fallback to soft
-        if not is_sat:
-            ctl.cleanup()
-            models.clear()
-            _activate_hints(ctl, hints, step)
-            ctl.configuration.solve.heuristic = "Vsids-Domain"
-            logger.info("No model found with hard guidance, using soft heuristics.")
-            ctl.solve(on_model=make_model_cb(models, step))
-
-        gc.collect()
-
-        # Record time and result
-        duration = time.time() - t0
-        step_times.append((step, duration))
-
-        if not models:
-            logger.info("No model at step %s, stopping.", step)
-            break
-
-        model = models[-1]
-        hints = _interesting_atoms(model)
-        if step % 5 == 0:
-            _wipe_all_hints(ctl)
-        ctl.cleanup()
-    
-
-
-
-        with pretty_path.open("a") as file:
-            file.write(f"--- Model {step:02d} ---\n")
-            file.writelines(pretty(model, template, parser, presenter))
-            file.write("\n\n")
-
-        logger.info("Step %02d: %.2fs, written to results.", step, duration)
-
-    return models, (models[-1] if models else None)
-
-
-def _run_static(
-    ctl,
-    template,
-    name: str,
-    max_steps: int,
-    result_path: Path,
-    pretty_path: Path,
-    step_times: List[Tuple[int, float]]
-):
-    models = []
-    t0 = time.time()
-    for step in range(1, max_steps + 1):
-        ctl.ground([("step", [Number(step)])])
-    ctl.solve(on_model=make_model_cb(models, step, template, parser, presenter, name))
-
-    duration = time.time() - t0
-    step_times.append((max_steps, duration))
-
-    if not models:
-        logger.info("No model found.")
-        return [], None
-
-    model = models[-1]
-
-    with pretty_path.open("a") as file:
-        file.write(pretty(model, template, parser, presenter))
-
-    logger.info("Static solve: %.2fs for %s steps.", duration, max_steps)
-    return models, model
-
-
-def do_template(add_const: bool, t: Template, dir: str, input_f: str) -> Tuple[str, str, bool, Template]:
-    """Generate auxiliary files for *t* and return metadata."""
-
-    d = dir[len("data/") :]
-    input_name = input_f[:-len(".lp")]
-    name = f"{d}_{input_name}"
-    os.makedirs("temp", exist_ok=True)
-    t.gen_inits(name)
-    t.gen_subs(name)
-    t.gen_var_atoms(name)
-    t.gen_interpretation(name)
-    return d, input_name, add_const, t
-
-def files_to_load(dir: str, input_f: str,t:Template) -> List[str]:
-    task_file = f"data/{dir}/{input_f}.lp"
-    d = "temp/"
-    init_f = f"{d}{dir}_{input_f}_init.lp"
-    subs_f = f"{d}{dir}_{input_f}_subs.lp"
-    rules_f = f"{d}{dir}_{input_f}_var_atoms.lp"
-    interp_f = f"{d}{dir}_{input_f}_interpretation.lp"
-    auxs = [f"asp/{x}" for x in t.frame.aux_files]
-    return [task_file, init_f, subs_f, rules_f, interp_f] + auxs
-
-def gen_bash(dir: str, input_f: str, add_const: bool, t: Template) -> Tuple[str, str]:
-    name = f"{dir}_{input_f}"
-    task_file = f"data/{dir}/{input_f}.lp"
-    d = "temp/"
-    fpath = f"{d}{name}_script.sh"
-    with open(fpath, "w") as fh:
-        fh.write(f'echo "Processing {task_file}."\n\n')
-    init_f = f"{d}{name}_init.lp"
-    subs_f = f"{d}{name}_subs.lp"
-    rules_f = f"{d}{name}_var_atoms.lp"
-    interp_f = f"{d}{name}_interpretation.lp"
-    auxs = [f"asp/{x}" for x in t.frame.aux_files]
-    aux_s = " ".join(auxs)
-    results_f = f"{d}{name}_results.txt"
-    handle = f" > {results_f}"
-    args = f" --stats --verbose=2 --warn=no-atom-undefined --time-limit={const_time_limit} "
-    args_prime = args + f"-c k_xor_group=$1 {xor_group_file_name} " if add_const else args
-    clingo = "/vol/lab/clingo5/clingo " if flag_condor else "clingo "
-    costs = "" if flag_ablation_remove_cost else " asp/costs.lp "
-    s = (
-        clingo + args_prime + task_file + " " + init_f + " " + subs_f + " " +
-        rules_f + " " + interp_f + " " + aux_s +
-        " asp/judgement.lp asp/constraints.lp" + costs + handle + "\n\n"
-    )
-    with open(fpath, "a") as fh:
-        fh.write(s)
-    logger.info("Generated %s", fpath)
-    os.chmod(fpath, 0o777)
-    return fpath, results_f
-
-
-def main(argv: Optional[List[str]] = None) -> None:
-    """Entry point for the command line interface."""
-
-    parser = argparse.ArgumentParser(description="Solve problems using Clingo")
-    sub = parser.add_subparsers(dest="command", required=True)
-
-    sok_cmd = sub.add_parser("sokoban", help="Solve a Sokoban instance")
-    sok_cmd.add_argument("example")
-    sok_cmd.add_argument("--incremental", action="store_true")
-
-    pac_cmd = sub.add_parser("pacman", help="Solve a Pacman instance")
-    pac_cmd.add_argument("example")
-    pac_cmd.add_argument("--incremental", action="store_true")
-
-    eca_cmd = sub.add_parser("eca", help="Solve an ECA instance")
-    eca_cmd.add_argument("input")
-    eca_cmd.add_argument("--incremental", action="store_true")
-
-    args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.INFO)
-
-    if args.command == "sokoban":
-        solve_sokoban(args.example, args.incremental)
-    elif args.command == "pacman":
-        solve_pacman(args.example, args.incremental)
-    elif args.command == "eca":
-        solve_eca(args.input, args.incremental)
-
-if __name__ == "__main__":
-    main()
