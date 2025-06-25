@@ -340,18 +340,25 @@ def model_to_string(model: Sequence[clingo.Symbol]) -> str:
     )
 
 
-def make_model_callback(collector: List[List[Symbol]], step: int):
-    """
-    Returns an `on_model` callback that stores *shown* symbols from a Clingo model.
+@dataclass
+class ModelCost:
+    cost: Sequence[int]
+    symbols: List[Symbol]
 
-    Args:
-        collector: A list to append the shown symbols of each model.
-        step: The current solving step, used for logging.
-    """
+
+def make_model_callback(
+    collector: List[List[Symbol]],
+    step: int,
+    cost_collector: Optional[List[ModelCost]] = None,
+) -> callable:
+    """Return an ``on_model`` callback that records shown symbols and cost."""
 
     def callback(model: clingo.Model):
         logger.info("Model found with cost %s at step %s", model.cost, step)
-        collector.append(model.symbols(shown=True))
+        syms = model.symbols(shown=True)
+        collector.append(syms)
+        if cost_collector is not None:
+            cost_collector.append(ModelCost(tuple(model.cost), list(syms)))
 
     return callback
 
@@ -489,6 +496,7 @@ def _run_incremental_solve(
     input_file: str,
     pretty_path: Path,
     step_times: List[Tuple[int, float]],
+    opt_models_path: Optional[Path] = None,
 ) -> Tuple[List[List[Symbol]], Optional[List[Symbol]]]:
     """
     Executes an incremental Clingo solve process.
@@ -500,6 +508,7 @@ def _run_incremental_solve(
         input_file: The name of the input file.
         pretty_path: Path to write pretty-formatted models.
         step_times: List to record (step, duration) for each solve step.
+        opt_models_path: Optional path to record all optimal-cost models per step.
 
     Returns:
         A tuple containing:
@@ -510,6 +519,9 @@ def _run_incremental_solve(
     current_hints: List[Symbol] = []
     max_time_steps = get_num_time_steps(f"{work_dir}/{input_file}")
     logger.info("Incremental solving up to %s steps", max_time_steps)
+
+    if opt_models_path is not None:
+        opt_models_path.write_text("")
 
     for step in range(1, max_time_steps + 1):
         ctl.ground([("step", [Number(step)])])
@@ -523,12 +535,13 @@ def _run_incremental_solve(
 
         t0 = time.time()
         models_current_step: List[List[Symbol]] = []
+        cost_models_current_step: List[ModelCost] = []
 
         # Attempt to solve with hard guidance (assumptions) if hints are available
         assumptions, literal_to_symbol_map = _make_assumptions(ctl, current_hints)
         result = ctl.solve(
             assumptions=[(literal_to_symbol_map[lit], val) for lit, val in assumptions],
-            on_model=make_model_callback(models_current_step, step),
+            on_model=make_model_callback(models_current_step, step, cost_models_current_step),
         )
         is_satisfiable = result.satisfiable
         del result  # Release solver resources early
@@ -578,6 +591,15 @@ def _run_incremental_solve(
             file.write(f"--- Model {step:02d} ---\n")
             file.writelines(pretty_print_model(current_model, template))
             file.write("\n\n")
+
+        if opt_models_path is not None and cost_models_current_step:
+            best_cost = min(mc.cost for mc in cost_models_current_step)
+            with opt_models_path.open("a") as opt_file:
+                opt_file.write(f"--- Step {step:02d} (cost {best_cost}) ---\n")
+                for mc in cost_models_current_step:
+                    if mc.cost == best_cost:
+                        opt_file.writelines(pretty_print_model(mc.symbols, template))
+                        opt_file.write("\n\n")
 
         logger.info("Step %02d: %.2fs. Results written to %s", step, duration, pretty_path)
 
@@ -637,6 +659,7 @@ def solve(
     problem_type: str,
     example_name: str,
     incremental: bool = False,
+    save_opt_models: bool = False,
 ) -> Optional[str]:
     """
     Solves a problem (Sokoban, Pacman, or ECA) using Clingo.
@@ -645,6 +668,7 @@ def solve(
         problem_type: "sokoban", "pacman", or "eca".
         example_name: The name of the example or input file.
         incremental: Whether to use incremental solving.
+        save_opt_models: If True, write optimal-cost models per step to a file.
 
     Returns:
         The formatted solution as a string, or None if no solution is found.
@@ -695,6 +719,14 @@ def solve(
     result_path.write_text("")
     pretty_path.write_text("")
 
+    opt_models_path = (
+        result_path.with_name(f"{result_path.stem}_opt.txt")
+        if incremental and save_opt_models
+        else None
+    )
+    if opt_models_path is not None:
+        opt_models_path.write_text("")
+
     ctl = _setup_control(files_to_load)
     ctl.ground([("base", [])])
 
@@ -705,7 +737,13 @@ def solve(
 
     if incremental:
         models, last_model = _run_incremental_solve(
-            ctl, template, work_dir, input_file, pretty_path, _step_durations
+            ctl,
+            template,
+            work_dir,
+            input_file,
+            pretty_path,
+            _step_durations,
+            opt_models_path,
         )
     else:
         models, last_model = _run_static_solve(
@@ -781,11 +819,21 @@ def main(argv: Optional[List[str]] = None) -> None:
     sok_cmd.add_argument(
         "--incremental", action="store_true", help="Use incremental solving"
     )
+    sok_cmd.add_argument(
+        "--save-opt-models",
+        action="store_true",
+        help="Save optimal-cost models for each step",
+    )
 
     pac_cmd = subparsers.add_parser("pacman", help="Solve a Pacman instance")
     pac_cmd.add_argument("example", help="Name of the Pacman example")
     pac_cmd.add_argument(
         "--incremental", action="store_true", help="Use incremental solving"
+    )
+    pac_cmd.add_argument(
+        "--save-opt-models",
+        action="store_true",
+        help="Save optimal-cost models for each step",
     )
 
     eca_cmd = subparsers.add_parser("eca", help="Solve an ECA instance")
@@ -793,16 +841,36 @@ def main(argv: Optional[List[str]] = None) -> None:
     eca_cmd.add_argument(
         "--incremental", action="store_true", help="Use incremental solving"
     )
+    eca_cmd.add_argument(
+        "--save-opt-models",
+        action="store_true",
+        help="Save optimal-cost models for each step",
+    )
 
     args = parser_cli.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     if args.command == "sokoban":
-        solve(problem_type="sokoban", example_name=args.example, incremental=args.incremental)
+        solve(
+            problem_type="sokoban",
+            example_name=args.example,
+            incremental=args.incremental,
+            save_opt_models=args.save_opt_models,
+        )
     elif args.command == "pacman":
-        solve(problem_type="pacman", example_name=args.example, incremental=args.incremental)
+        solve(
+            problem_type="pacman",
+            example_name=args.example,
+            incremental=args.incremental,
+            save_opt_models=args.save_opt_models,
+        )
     elif args.command == "eca":
-        solve(problem_type="eca", example_name=args.input, incremental=args.incremental)
+        solve(
+            problem_type="eca",
+            example_name=args.input,
+            incremental=args.incremental,
+            save_opt_models=args.save_opt_models,
+        )
 
 
 if __name__ == "__main__":
