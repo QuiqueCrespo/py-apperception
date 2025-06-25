@@ -51,6 +51,9 @@ const_time_limit: int = 14400
 show_answer_set: bool = False
 show_extraction: bool = True
 
+# Optional: dump all optimal-cost models per step to the ``temp`` directory
+flag_store_opt_models: bool = False
+
 
 
 parser = ClingoParser(show_answer_set=show_answer_set,
@@ -118,7 +121,11 @@ def extract_pacman_data(e: PacmanTypes.Example) -> Tuple[int, int, int, int]:
     return max_x, max_y, num_pellets, num_ghosts
 
 
-def solve_sokoban(example_name: str, incremental: bool = False) -> Optional[str]:
+def solve_sokoban(
+    example_name: str,
+    incremental: bool = False,
+    store_opt_models: bool = False,
+) -> Optional[str]:
     """Solve a Sokoban instance and return the formatted result."""
     logger.info("Using example: %s", example_name)
 
@@ -127,7 +134,13 @@ def solve_sokoban(example_name: str, incremental: bool = False) -> Optional[str]
 
     logger.info("max_x: %s max_y: %s n_blocks: %s", max_x, max_y, n_blocks)
     input_f = f"predict_{example_name}.lp"
-    _, solutions = do_solve("data/sokoban", input_f, t, incremental=incremental)
+    _, solutions = do_solve(
+        "data/sokoban",
+        input_f,
+        t,
+        incremental=incremental,
+        store_opt_models=store_opt_models,
+    )
 
     if not solutions:
         logger.warning("No solution found.")
@@ -143,7 +156,11 @@ def solve_sokoban(example_name: str, incremental: bool = False) -> Optional[str]
     return result
 
 
-def solve_pacman(example_name: str, incremental: bool = False) -> Optional[str]:
+def solve_pacman(
+    example_name: str,
+    incremental: bool = False,
+    store_opt_models: bool = False,
+) -> Optional[str]:
     """Solve a Pacman instance and return the formatted result."""
 
     logger.info("Using example: %s", example_name)
@@ -159,7 +176,13 @@ def solve_pacman(example_name: str, incremental: bool = False) -> Optional[str]:
         num_ghosts,
     )
     input_f = f"predict_{example_name}.lp"
-    _, solutions = do_solve("data/pacman", input_f, t, incremental=incremental)
+    _, solutions = do_solve(
+        "data/pacman",
+        input_f,
+        t,
+        incremental=incremental,
+        store_opt_models=store_opt_models,
+    )
 
     if not solutions:
         logger.warning("No solution found.")
@@ -170,14 +193,24 @@ def solve_pacman(example_name: str, incremental: bool = False) -> Optional[str]:
     return result
 
 
-def solve_eca(input_name: str, incremental: bool = False) -> Optional[str]:
+def solve_eca(
+    input_name: str,
+    incremental: bool = False,
+    store_opt_models: bool = False,
+) -> Optional[str]:
     """Solve an ECA instance with optional incremental solving."""
 
     logger.info("Using ECA input: %s", input_name)
     t = template_eca(False)
     input_f = f"{input_name}.lp" if not input_name.endswith(".lp") else input_name
 
-    _, solutions = do_solve("data/eca", input_f, t, incremental=incremental)
+    _, solutions = do_solve(
+        "data/eca",
+        input_f,
+        t,
+        incremental=incremental,
+        store_opt_models=store_opt_models,
+    )
 
     if not solutions:
         logger.warning("No solution found.")
@@ -371,15 +404,14 @@ def model_to_string(model: Sequence[clingo.Symbol]) -> str:
     )
 
 def make_model_cb(
-    collector: list[List[Symbol]],
+    collector: list[tuple[Tuple[int, ...], list[Symbol]]],
     step: int,
-
 ):
-    """Return an *on_model* callback that stores *shown* symbols."""
+    """Return an *on_model* callback that stores cost and shown symbols."""
 
     def cb(model: clingo.Model):
         logger.info("Model found with cost %s at step %s", model.cost, step)
-        collector.append(model.symbols(shown=True))
+        collector.append((tuple(model.cost), model.symbols(shown=True)))
         return None
 
     return cb
@@ -556,7 +588,8 @@ def do_solve(
     template: Template,
     delete_temp: bool = False,
     max_steps: int = 14,
-    incremental: bool = False
+    incremental: bool = False,
+    store_opt_models: bool = False,
 ) -> Tuple[str, Optional[ClingoOutput]]:
     """
     Run a Clingo solve (static or incremental), collect models, record times per step,
@@ -584,17 +617,26 @@ def do_solve(
     # Run solving
     if incremental:
         models, last_model = _run_incremental(
-            ctl, template, name,
-            work_dir, input_file,
-            result_path, pretty_path,
-            step_times
+            ctl,
+            template,
+            name,
+            work_dir,
+            input_file,
+            result_path,
+            pretty_path,
+            step_times,
+            store_opt_models,
         )
     else:
         models, last_model = _run_static(
-            ctl, template, name,
+            ctl,
+            template,
+            name,
             max_steps,
-            result_path, pretty_path,
-            step_times
+            result_path,
+            pretty_path,
+            step_times,
+            store_opt_models,
         )
 
     # Plot timing graph
@@ -622,7 +664,8 @@ def _run_incremental(
     work_dir: str,
     input_file: str,
     pretty_path: Path,
-    step_times: List[Tuple[int, float]]
+    step_times: List[Tuple[int, float]],
+    store_opt_models: bool = False,
 ):
     models, hints = [], []
     max_ts = get_num_time_steps(f"{work_dir}/{input_file}")
@@ -642,7 +685,7 @@ def _run_incremental(
         assumptions, lit_map = _make_assumptions(ctl, hints) if hints else ([], {})
         logger.info("Step %02d with %d assumptions", step, len(assumptions))
         result = ctl.solve(
-            assumptions=[(lit_map[a],v) for a, v in assumptions],
+            assumptions=[(lit_map[a], v) for a, v in assumptions],
             on_model=make_model_cb(models, step),
         )
         
@@ -680,7 +723,7 @@ def _run_incremental(
             logger.info("No model at step %s, stopping.", step)
             break
 
-        model = models[-1]
+        model = models[-1][1]
         hints = _interesting_atoms(model)
         if step % 5 == 0:
             _wipe_all_hints(ctl)
@@ -694,9 +737,24 @@ def _run_incremental(
             file.writelines(pretty(model, template, parser, presenter))
             file.write("\n\n")
 
+        if store_opt_models:
+            best = min(c for c, _ in models)
+            opt_models = [m for c, m in models if c == best]
+            opt_file = pretty_path.with_name(
+                f"{pretty_path.stem}_opt_step{step:02d}.txt"
+            )
+            with opt_file.open("w") as of:
+                for i, om in enumerate(opt_models, 1):
+                    of.write(f"--- Optimal {i} ---\n")
+                    of.writelines(pretty(om, template, parser, presenter))
+                    of.write("\n\n")
+            logger.info(
+                "Stored %d optimal models for step %s", len(opt_models), step
+            )
+
         logger.info("Step %02d: %.2fs, written to results.", step, duration)
 
-    return models, (models[-1] if models else None)
+    return models, (models[-1][1] if models else None)
 
 
 def _run_static(
@@ -706,13 +764,14 @@ def _run_static(
     max_steps: int,
     result_path: Path,
     pretty_path: Path,
-    step_times: List[Tuple[int, float]]
+    step_times: List[Tuple[int, float]],
+    store_opt_models: bool = False,
 ):
     models = []
     t0 = time.time()
     for step in range(1, max_steps + 1):
         ctl.ground([("step", [Number(step)])])
-    ctl.solve(on_model=make_model_cb(models, step, template, parser, presenter, name))
+    ctl.solve(on_model=make_model_cb(models, step))
 
     duration = time.time() - t0
     step_times.append((max_steps, duration))
@@ -721,10 +780,21 @@ def _run_static(
         logger.info("No model found.")
         return [], None
 
-    model = models[-1]
+    model = models[-1][1]
 
     with pretty_path.open("a") as file:
         file.write(pretty(model, template, parser, presenter))
+
+    if store_opt_models:
+        best = min(c for c, _ in models)
+        opt_models = [m for c, m in models if c == best]
+        opt_file = pretty_path.with_name(f"{pretty_path.stem}_opt_static.txt")
+        with opt_file.open("w") as of:
+            for i, om in enumerate(opt_models, 1):
+                of.write(f"--- Optimal {i} ---\n")
+                of.writelines(pretty(om, template, parser, presenter))
+                of.write("\n\n")
+        logger.info("Stored %d optimal models", len(opt_models))
 
     logger.info("Static solve: %.2fs for %s steps.", duration, max_steps)
     return models, model
@@ -793,24 +863,42 @@ def main(argv: Optional[List[str]] = None) -> None:
     sok_cmd = sub.add_parser("sokoban", help="Solve a Sokoban instance")
     sok_cmd.add_argument("example")
     sok_cmd.add_argument("--incremental", action="store_true")
+    sok_cmd.add_argument(
+        "--store-opt-models",
+        action="store_true",
+        help="dump all optimal-cost models at each step",
+    )
 
     pac_cmd = sub.add_parser("pacman", help="Solve a Pacman instance")
     pac_cmd.add_argument("example")
     pac_cmd.add_argument("--incremental", action="store_true")
+    pac_cmd.add_argument(
+        "--store-opt-models",
+        action="store_true",
+        help="dump all optimal-cost models at each step",
+    )
 
     eca_cmd = sub.add_parser("eca", help="Solve an ECA instance")
     eca_cmd.add_argument("input")
     eca_cmd.add_argument("--incremental", action="store_true")
+    eca_cmd.add_argument(
+        "--store-opt-models",
+        action="store_true",
+        help="dump all optimal-cost models at each step",
+    )
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO)
 
+    global flag_store_opt_models
+    flag_store_opt_models = getattr(args, "store_opt_models", False)
+
     if args.command == "sokoban":
-        solve_sokoban(args.example, args.incremental)
+        solve_sokoban(args.example, args.incremental, flag_store_opt_models)
     elif args.command == "pacman":
-        solve_pacman(args.example, args.incremental)
+        solve_pacman(args.example, args.incremental, flag_store_opt_models)
     elif args.command == "eca":
-        solve_eca(args.input, args.incremental)
+        solve_eca(args.input, args.incremental, flag_store_opt_models)
 
 if __name__ == "__main__":
     main()
