@@ -246,6 +246,7 @@ class Interpretation:
         self.times         = [int(t) for t in self.extract_atoms("is_time(", xs)]
         self.senses        = self.extract_atoms("senses(", xs)
         self.hiddens       = self.extract_atoms("hidden(", xs)
+        self.rule_var_groups = self.extract_var_groups(xs)
         self.exclusions    = self.extract_exclusions(xs)
         self.inits         = self.extract_atoms("init(", xs)
         self.permanents    = self.extract_atoms("gen_permanent(", xs)
@@ -379,7 +380,19 @@ class Interpretation:
             cleaned_atoms.append(f"{pred}({', '.join(args)}")
         return cleaned_atoms
     
-        
+    def extract_var_groups(self, xs: List[str]) -> List[SubsGroup]:
+        """
+        Extracts variable groups from the interpretation.
+        Each group is a tuple of a group name and a list of substitutions.
+        """
+        groups: List[SubsGroup] = []
+        for x in xs:
+            if x.startswith("rule_var_group("):
+                body = x[len("rule_var_group("):-1]
+                rule, group = body.split(",")
+                line = f"rule {rule.strip()} with vars {group.strip()}"
+                groups.append(line)
+        return groups
 
     # --- statistics ---
     def extract_num_used_arrow_rules(self, xs: List[str]) -> int:
@@ -1064,10 +1077,15 @@ class Template:
         ]
 
         for vg in frm.var_groups:
+            
             n = self.frame.var_group_name(vg)
             for v in vg:
                 lines.append(f"contains_var(var_group_{n}, {v}).")
             lines.append("")
+            l = len(vg)
+            lines.append(f"num_vars(var_group_{n}, {l}).")
+
+        
 
         lines.extend([
             "",

@@ -49,7 +49,7 @@ PRIORITY_STEP: int = 1  # priority increment per horizon step
 MAX_INCREMENTAL_STEPS: int = 14
 
 # Display Options
-SHOW_ANSWER_SET: bool = False
+SHOW_ANSWER_SET: bool = True
 SHOW_EXTRACTION: bool = True
 
 # Clingo Atom Interests

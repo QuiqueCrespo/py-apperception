@@ -1,15 +1,21 @@
 #program step(t).
 is_time(t).
+% %–– unify all head atoms under one predicate
+% rule_head(R,A) :- rule_arrow_head(R,A).
+% rule_head(R,A) :- rule_causes_head(R,A).
+
+% %–– helper for minimizing per‐variable usage
+% rule_var(R,L) :- rule_var_group(R,VG), contains_var(VG,L).
 
 #minimize {
-              1@1,A,R : rule_body(R,A);
-              1@1,A,R : rule_arrow_head(R,A);
-              1@1,A,R : rule_causes_head(R,A);
-              1@1,A : init(A);
-              1@1,A : gen_permanent(A);
-              1@1,A,T : force(A,T)
+     5@1, R,A      : rule_body(R,A);     % you really want as few body atoms as possible
+     5@1, R,A      : rule_arrow_head(R,A);     % next, shrink the total number of heads
+     5@1, R,A      : rule_causes_head(R,A);     % next, shrink the total number of heads
+     3@2, A        : init(A);            % then prefer fewer initial facts
+     3@2, A        : gen_permanent(A);   % likewise for permanent generation
+     2@3, A,T      : force(A,T);         % optional “forces” are expensive but less so
+     N@4, R      : rule_var_group(R,VG), num_vars(VG, N)      % finally, the var‐groupings are the softest objective
 }.
-
 
 %------------------------------------------------------------------------------
 % evaluation
@@ -43,9 +49,9 @@ holds(S, t) :-
     is_time(t-1),
     is_time(t),
     not is_static_atom(S),
-    not can_not_hold(S, t).
+    not -hold(S, t).
 
-can_not_hold(S, t) :-
+-hold(S, t) :-
     holds(S2, t),
     incompossible(S, S2).
 
