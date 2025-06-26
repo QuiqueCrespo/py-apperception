@@ -131,38 +131,47 @@ senses(s2(c_ghost_at, obj_ghost_1, obj_cell_3_4), 4).
 senses(s(c_alive, obj_ghost_1), 4).
 senses(s2(c_pacman_at, obj_pacman, obj_cell_4_2), 5).
 senses(s(c_alive, obj_pacman), 5).
+senses(s(c_powered, obj_pacman), 5).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_4_4), 5).
 senses(s(c_alive, obj_ghost_1), 5).
 senses(s2(c_pacman_at, obj_pacman, obj_cell_4_3), 6).
 senses(s(c_alive, obj_pacman), 6).
+senses(s(c_powered, obj_pacman), 6).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_5_4), 6).
 senses(s(c_alive, obj_ghost_1), 6).
 senses(s2(c_pacman_at, obj_pacman, obj_cell_4_3), 7).
 senses(s(c_alive, obj_pacman), 7).
+senses(s(c_powered, obj_pacman), 7).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_6_4), 7).
 senses(s(c_alive, obj_ghost_1), 7).
 senses(s2(c_pacman_at, obj_pacman, obj_cell_4_4), 8).
 senses(s(c_alive, obj_pacman), 8).
+senses(s(c_powered, obj_pacman), 8).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_7_4), 8).
 senses(s(c_alive, obj_ghost_1), 8).
 senses(s2(c_pacman_at, obj_pacman, obj_cell_5_4), 9).
 senses(s(c_alive, obj_pacman), 9).
+senses(s(c_powered, obj_pacman), 9).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_8_4), 9).
 senses(s(c_alive, obj_ghost_1), 9).
 senses(s2(c_pacman_at, obj_pacman, obj_cell_4_4), 10).
 senses(s(c_alive, obj_pacman), 10).
+senses(s(c_powered, obj_pacman), 10).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_7_4), 10).
 senses(s(c_alive, obj_ghost_1), 10).
 senses(s2(c_pacman_at, obj_pacman, obj_cell_3_4), 11).
 senses(s(c_alive, obj_pacman), 11).
+senses(s(c_powered, obj_pacman), 11).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_6_4), 11).
 senses(s(c_alive, obj_ghost_1), 11).
 senses(s2(c_pacman_at, obj_pacman, obj_cell_3_4), 12).
 senses(s(c_alive, obj_pacman), 12).
+senses(s(c_powered, obj_pacman), 12).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_5_4), 12).
 senses(s(c_alive, obj_ghost_1), 12).
 senses(s2(c_pacman_at, obj_pacman, obj_cell_4_4), 13).
-senses(s(c_dead, obj_pacman), 13).
+senses(s(c_alive, obj_pacman), 13).
+senses(s(c_powered, obj_pacman), 13).
 senses(s2(c_ghost_at, obj_ghost_1, obj_cell_4_4), 13).
 senses(s(c_alive, obj_ghost_1), 13).
 

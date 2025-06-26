@@ -240,6 +240,7 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
             (C("pacman_at"), [T("pacman"), T("cell")]),
             (C("ghost_at"), [T("ghost"), T("cell")]),
             (C("pellet_at"), [T("pellet"), T("cell")]),
+            (C("powered"), [T("pacman")]),
             (C("alive"), [T("character")]),
             (C("dead"), [T("character")]),
             (C("noop"), [T("pacman")]),
@@ -250,7 +251,7 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
 
             (C("p1"), [T("ghost")]),
             (C("p2"), [T("ghost")]),
-            (C("p3"), [T("pacman")]),
+            # (C("p3"), [T("pacman")]),
             # (C("p4"), [T("object")]),
         ],
         input_concepts=[
@@ -266,7 +267,7 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
             C("south"),
             C("p1"),
             C("p2"),
-            C("p3"),
+            # C("p3"),
             # C("p4")
         ],
         static_concepts=[],
@@ -278,9 +279,9 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
             (V("o"), T("pellet")),
         ],
         var_groups=[
-            [V("p"), V("c1")],
-            [V("g"), V("c1")],
-            [V("o"), V("c1")],
+            # [V("p"), V("c1")],
+            # [V("g"), V("c1")],
+            # [V("o"), V("c1")],
             [V("p"), V("c1"), V("c2")],
             [V("g"), V("c1"), V("c2")],
             [V("o"), V("c1"), V("c2")],

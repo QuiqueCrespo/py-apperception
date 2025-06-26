@@ -116,7 +116,7 @@ def perform_action(state: State, action: PacmanAction) -> State:
 
     pacman_pos    = (new_px, new_py)
     pellet_picked = pacman_pos in state.pellets
-    powered       = state.powered or pellet_picked
+    powered       = state.powered or state.pellet_picked
 
     # ------------------------------------------------------------------
     # move ghosts
@@ -162,8 +162,8 @@ def perform_action(state: State, action: PacmanAction) -> State:
         if idx < len(ghost_alive):
             final_alive.append(alive)
 
-    if state.powered and not pellet_picked:
-        powered = False
+    if state.pellet_picked:
+        pellet_picked = False
 
     return State(
         cells       = state.cells,
@@ -175,6 +175,7 @@ def perform_action(state: State, action: PacmanAction) -> State:
         alive       = pacman_alive,
         pacman_alive= pacman_alive,
         ghost_alive = final_alive,
+        pellet_picked = pellet_picked,
     )
 
 
@@ -501,6 +502,10 @@ def trajectory_atoms(traj: Trajectory) -> List[str]:
 
         status = "alive" if getattr(s, "alive", True) else "dead"
         lines.append(f"senses(s(c_{status}, obj_pacman), {i}).")
+
+        if getattr(s, "powered", False):
+            lines.append(f"senses(s(c_powered, obj_pacman), {i}).")
+
 
         for j, (ox, oy) in enumerate(s.pellets, start=1):
             lines.append(

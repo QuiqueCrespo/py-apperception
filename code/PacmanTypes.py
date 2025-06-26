@@ -42,6 +42,7 @@ class State:
     alive: bool = True
     pacman_alive: bool = True
     ghost_alive: List[bool] = field(default_factory=list)
+    pellet_picked: List[bool] = False
 
 
 @dataclass(order=True, frozen=True)
