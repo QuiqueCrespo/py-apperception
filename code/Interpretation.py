@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field, InitVar
 from enum import Enum
-from typing import List, Tuple, Optional, Dict, Union, Any
+from typing import List, Tuple, Optional, Dict, Union, Any, Iterable
 import re
 from collections import defaultdict
 from enum import Enum
@@ -10,7 +10,7 @@ import math
 
 
 
-from itertools import combinations
+from itertools import combinations, product
 import os
 
 
@@ -1109,7 +1109,7 @@ class Template:
             fh.write("\n".join(lines) + "\n")
         print(f"Generated {path}")
 
-    def print_subs_group(self, file: str, sg: Tuple[str, List[Any]]) -> None:
+    def print_subs_group(self, file: str, sg: Tuple[str, Iterable[Any]]) -> None:
         name, ss = sg
         for i, subs in enumerate(ss, start=1):
             self.print_subs(file, name, (i, subs))
@@ -1191,7 +1191,7 @@ class Template:
                 result.append([o] + tail)
         return result
 
-    def all_subs(self) -> List[Tuple[str, List[List[Tuple[Any, Any]]]]]:
+    def all_subs(self) -> List[Tuple[str, Iterable[List[Tuple[Any, Any]]]]]:
         subs_groups = []
         sub_types_list = Template.fixed_point(Template.trans, self.frame.sub_types())
         for vg in self.frame.var_groups:
@@ -1240,20 +1240,35 @@ class Template:
         return sorted(rs)
 
     @staticmethod
-    def gen2(objects: List[Tuple[Any, Any]],
-             sub_types_list: List[Tuple[Any, Any]],
-             vars_typed: List[Tuple[Any, Any]]
-            ) -> List[List[Tuple[Any, Any]]]:
+    def gen2(
+        objects: List[Tuple[Any, Any]],
+        sub_types_list: List[Tuple[Any, Any]],
+        vars_typed: List[Tuple[Any, Any]],
+        *,
+        unique_by_type: bool = True,
+    ) -> Iterable[List[Tuple[Any, Any]]]:
+        """Yield variable substitutions lazily using :func:`itertools.product`."""
+
         if not vars_typed:
-            return [[]]
-        v, t = vars_typed[0]
-        rest = vars_typed[1:]
-        candidates = [(v, o) for o, tp in objects if Template.is_sub_type(sub_types_list, tp, t)]
-        result = []
-        for pick in candidates:
-            for tail in Template.gen2(objects, sub_types_list, rest):
-                result.append([pick] + tail)
-        return result
+            yield []
+            return
+
+        # collect candidates per variable
+        candidate_lists: List[List[Tuple[Any, Any]]] = []
+        for var, var_type in vars_typed:
+            seen_types = set()
+            cands: List[Tuple[Any, Any]] = []
+            for obj, obj_type in objects:
+                if Template.is_sub_type(sub_types_list, obj_type, var_type):
+                    if unique_by_type:
+                        if obj_type in seen_types:
+                            continue
+                        seen_types.add(obj_type)
+                    cands.append((var, obj))
+            candidate_lists.append(cands)
+
+        for combo in product(*candidate_lists):
+            yield list(combo)
 
     @staticmethod
     def is_sub_type(sub_types_list: List[Tuple[Any, Any]], x: Any, y: Any) -> bool:
