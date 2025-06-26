@@ -47,6 +47,7 @@ DEFAULT_TIME_LIMIT: int = 14400  # seconds
 BASE_PRIORITY: int = 10  # initial priority of a hint batch
 PRIORITY_STEP: int = 1  # priority increment per horizon step
 MAX_INCREMENTAL_STEPS: int = 14
+WINDOW_SIZE: int = 5
 
 # Display Options
 SHOW_ANSWER_SET: bool = True
@@ -217,14 +218,14 @@ def _wipe_all_hints(ctrl: clingo.Control) -> None:
             _known_externals.pop(ext, None)
 
 
-def _activate_hints(ctrl: clingo.Control, atoms: Iterable[Symbol], step: int) -> None:
+def _activate_hints(ctrl: clingo.Control, atoms: Iterable[Symbol], step: int) -> List[Function]:
     """
     Attach heuristic guidance for atoms (declare once, enable this step).
     New externals are declared and grounded; existing ones are assigned true.
     """
     atoms = list(atoms)
     if not atoms:
-        return
+        return []
 
     priority = BASE_PRIORITY + PRIORITY_STEP * step
 
@@ -254,6 +255,8 @@ def _activate_hints(ctrl: clingo.Control, atoms: Iterable[Symbol], step: int) ->
         if not _known_externals[ext]:
             ctrl.assign_external(ext, True)
             _known_externals[ext] = True
+
+    return to_enable
 
 
 def _make_assumptions(
@@ -520,18 +523,34 @@ def _run_incremental_solve(
     max_time_steps = get_num_time_steps(f"{work_dir}/{input_file}")
     logger.info("Incremental solving up to %s steps", max_time_steps)
 
+    temp_dir_prefix = work_dir.split("/")[-1]
+    base_name = input_file.replace(".lp", "")
+    files_to_load = _collect_asp_files(temp_dir_prefix, base_name, template)
+    files_to_load.extend(["asp/judgement.lp", "asp/constraints.lp", "asp/step.lp"])
+
     if opt_models_path is not None:
         opt_models_path.write_text("")
 
     for step in range(1, max_time_steps + 1):
-        ctl.ground([("step", [Number(step)])])
-
-        # If it's the first step (step=0 or 1), we don't apply hints from a previous model
-        if step > 1 and current_hints:
-            _activate_hints(ctl, current_hints, step)
+        if step > WINDOW_SIZE:
+            _wipe_all_hints(ctl)
+            ctl = _setup_control(files_to_load)
+            ctl.ground([("base", [])])
+            for s in range(step - WINDOW_SIZE + 1, step):
+                ctl.ground([("volatile", [Number(s)])])
+            if current_hints:
+                _activate_hints(ctl, current_hints, step)
         else:
-            # For the first step or if no hints, ensure heuristics are default
-            ctl.configuration.solve.heuristic = "Vsids-Domain"
+            if step > 1 and current_hints:
+                _activate_hints(ctl, current_hints, step)
+
+        ctl.ground([("volatile", [Number(step)])])
+
+        if step == 1 or not current_hints:
+            try:
+                ctl.configuration.solve.heuristic = "Vsids-Domain"
+            except AttributeError:
+                pass
 
         t0 = time.time()
         models_current_step: List[List[Symbol]] = []
@@ -603,7 +622,7 @@ def _run_incremental_solve(
 
         logger.info("Step %02d: %.2fs. Results written to %s", step, duration, pretty_path)
 
-    return all_models, (all_models[-1] if all_models else None)
+    return all_models, (all_models[-1] if all_models else None), ctl
 
 
 def _run_static_solve(
@@ -633,7 +652,7 @@ def _run_static_solve(
 
     # Ground all steps upfront for static solving
     for step_num in range(1, max_steps + 1):
-        ctl.ground([("step", [Number(step_num)])])
+        ctl.ground([("volatile", [Number(step_num)])])
 
     ctl.solve(on_model=make_model_callback(all_models, max_steps))
 
@@ -736,7 +755,7 @@ def solve(
     last_model: Optional[List[Symbol]]
 
     if incremental:
-        models, last_model = _run_incremental_solve(
+        models, last_model, _ = _run_incremental_solve(
             ctl,
             template,
             work_dir,

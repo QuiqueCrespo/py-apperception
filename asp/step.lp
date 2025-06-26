@@ -1,4 +1,4 @@
-#program step(t).
+#program volatile(t).
 is_time(t).
 % %–– unify all head atoms under one predicate
 % rule_head(R,A) :- rule_arrow_head(R,A).
