@@ -113,8 +113,13 @@ class ClingoPresenter:
         if interp.permanents:
             lines.extend(["", "Permanents", "----------", ""] + interp.permanents)
         lines.extend(["", "Rules", "-----", ""] + [str(r) for r in interp.rules])
+        if interp.rule_var_groups:
+            lines.extend(["", "Rule variable groups", "-------------------", ""])
+            for group in interp.rule_var_groups:
+                lines.append(f"{group}")
         if interp.exclusions:
             lines.extend(["", "Constraints", "-----------", ""] + interp.exclusions)
+    
         lines.extend(["", "Trace", "-----", ""] + [self.show_fact(t, fs) for t, fs in interp.facts])
         lines.extend(["", "Accuracy", "--------", ""])
         lines.append("Status: correct" if interp.correct else "Status: incorrect")

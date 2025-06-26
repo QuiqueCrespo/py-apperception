@@ -354,3 +354,5 @@ rule_group(R1, R2) :-
 #show gen_permanent/1.
 #show force/2.
 #show rule_group/2.
+#show rule_var_group/2.
+
