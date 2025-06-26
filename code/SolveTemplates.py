@@ -259,6 +259,7 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
             C("ghost_at"),
             C("pellet_at"),
             C("alive"),
+            C("powered"),
             C("dead"),
             C("noop"),
             C("west"),
@@ -267,6 +268,7 @@ def frame_pacman(max_x: int, max_y: int, num_pellets: int, num_ghosts: int) -> F
             C("south"),
             C("p1"),
             C("p2"),
+
             # C("p3"),
             # C("p4")
         ],
